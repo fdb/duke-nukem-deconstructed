@@ -6,7 +6,6 @@ const SECTIONS = [
   { to: "/palette", title: "Palette & Shading", desc: "256-color palette, 32 shade levels, lookup remapping tables" },
   { to: "/tiles", title: "ART Tiles", desc: "Textures, sprites, and UI art — column-major indexed pixels" },
   { to: "/maps", title: "MAP Format", desc: "Sectors, walls, and sprites — the 2.5D geometry of Build engine levels" },
-  { to: "/viewer/E1L1", title: "3D Viewer", desc: "Walk through Hollywood Holocaust in textured or wireframe 3D" },
   { to: "/scripts", title: "CON Scripts", desc: "The game scripting language — actors, AI, weapons, and game logic" },
   { to: "/audio", title: "Audio", desc: "Creative Voice files and MIDI music — Duke's one-liners and GRABBAG" },
 ] as const;
@@ -35,6 +34,14 @@ function HomePage() {
             <p className="text-zinc-500 text-sm">{s.desc}</p>
           </Link>
         ))}
+        <Link
+          to="/viewer/$map"
+          params={{ map: "E1L1" }}
+          className="bg-zinc-900 p-6 no-underline hover:bg-zinc-800/80 transition-colors"
+        >
+          <h2 className="text-zinc-100 font-semibold text-lg mb-2">3D Viewer</h2>
+          <p className="text-zinc-500 text-sm">Walk through Hollywood Holocaust in textured or wireframe 3D</p>
+        </Link>
       </div>
     </div>
   );

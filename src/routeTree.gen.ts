@@ -10,9 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TilesRouteImport } from './routes/tiles'
+import { Route as ScriptsRouteImport } from './routes/scripts'
 import { Route as PaletteRouteImport } from './routes/palette'
 import { Route as MapsRouteImport } from './routes/maps'
 import { Route as GrpRouteImport } from './routes/grp'
+import { Route as AudioRouteImport } from './routes/audio'
 import { Route as ArchiveRouteImport } from './routes/archive'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ViewerMapRouteImport } from './routes/viewer.$map'
@@ -20,6 +22,11 @@ import { Route as ViewerMapRouteImport } from './routes/viewer.$map'
 const TilesRoute = TilesRouteImport.update({
   id: '/tiles',
   path: '/tiles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScriptsRoute = ScriptsRouteImport.update({
+  id: '/scripts',
+  path: '/scripts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaletteRoute = PaletteRouteImport.update({
@@ -35,6 +42,11 @@ const MapsRoute = MapsRouteImport.update({
 const GrpRoute = GrpRouteImport.update({
   id: '/grp',
   path: '/grp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AudioRoute = AudioRouteImport.update({
+  id: '/audio',
+  path: '/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ArchiveRoute = ArchiveRouteImport.update({
@@ -56,18 +68,22 @@ const ViewerMapRoute = ViewerMapRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/archive': typeof ArchiveRoute
+  '/audio': typeof AudioRoute
   '/grp': typeof GrpRoute
   '/maps': typeof MapsRoute
   '/palette': typeof PaletteRoute
+  '/scripts': typeof ScriptsRoute
   '/tiles': typeof TilesRoute
   '/viewer/$map': typeof ViewerMapRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/archive': typeof ArchiveRoute
+  '/audio': typeof AudioRoute
   '/grp': typeof GrpRoute
   '/maps': typeof MapsRoute
   '/palette': typeof PaletteRoute
+  '/scripts': typeof ScriptsRoute
   '/tiles': typeof TilesRoute
   '/viewer/$map': typeof ViewerMapRoute
 }
@@ -75,9 +91,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/archive': typeof ArchiveRoute
+  '/audio': typeof AudioRoute
   '/grp': typeof GrpRoute
   '/maps': typeof MapsRoute
   '/palette': typeof PaletteRoute
+  '/scripts': typeof ScriptsRoute
   '/tiles': typeof TilesRoute
   '/viewer/$map': typeof ViewerMapRoute
 }
@@ -86,27 +104,33 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/archive'
+    | '/audio'
     | '/grp'
     | '/maps'
     | '/palette'
+    | '/scripts'
     | '/tiles'
     | '/viewer/$map'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/archive'
+    | '/audio'
     | '/grp'
     | '/maps'
     | '/palette'
+    | '/scripts'
     | '/tiles'
     | '/viewer/$map'
   id:
     | '__root__'
     | '/'
     | '/archive'
+    | '/audio'
     | '/grp'
     | '/maps'
     | '/palette'
+    | '/scripts'
     | '/tiles'
     | '/viewer/$map'
   fileRoutesById: FileRoutesById
@@ -114,9 +138,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ArchiveRoute: typeof ArchiveRoute
+  AudioRoute: typeof AudioRoute
   GrpRoute: typeof GrpRoute
   MapsRoute: typeof MapsRoute
   PaletteRoute: typeof PaletteRoute
+  ScriptsRoute: typeof ScriptsRoute
   TilesRoute: typeof TilesRoute
   ViewerMapRoute: typeof ViewerMapRoute
 }
@@ -128,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/tiles'
       fullPath: '/tiles'
       preLoaderRoute: typeof TilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scripts': {
+      id: '/scripts'
+      path: '/scripts'
+      fullPath: '/scripts'
+      preLoaderRoute: typeof ScriptsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/palette': {
@@ -149,6 +182,13 @@ declare module '@tanstack/react-router' {
       path: '/grp'
       fullPath: '/grp'
       preLoaderRoute: typeof GrpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audio': {
+      id: '/audio'
+      path: '/audio'
+      fullPath: '/audio'
+      preLoaderRoute: typeof AudioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/archive': {
@@ -178,9 +218,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ArchiveRoute: ArchiveRoute,
+  AudioRoute: AudioRoute,
   GrpRoute: GrpRoute,
   MapsRoute: MapsRoute,
   PaletteRoute: PaletteRoute,
+  ScriptsRoute: ScriptsRoute,
   TilesRoute: TilesRoute,
   ViewerMapRoute: ViewerMapRoute,
 }

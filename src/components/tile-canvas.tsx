@@ -17,7 +17,9 @@ export function TileCanvas({ rgba, width, height, scale = 1, className = "" }: T
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d")!;
-    const img = new ImageData(new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength), width, height);
+    const clamped = new Uint8ClampedArray(rgba.length);
+    clamped.set(rgba);
+    const img = new ImageData(clamped, width, height);
     ctx.putImageData(img, 0, 0);
   }, [rgba, width, height]);
 
