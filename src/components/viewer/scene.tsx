@@ -115,7 +115,7 @@ export function ViewerScene({ map, wireframe, renderTile, getTile, onPositionCha
       <mesh geometry={geometry.floors} material={material} />
       <mesh geometry={geometry.ceilings} material={material} />
 
-      <FlyCamera startPos={startPos} startAngle={map.playerStart.ang} speed={1.5} onPositionChange={onPositionChange} />
+      <FlyCamera startPos={startPos} startAngle={map.playerStart.ang} speed={3} onPositionChange={onPositionChange} />
     </Canvas>
   );
 }
