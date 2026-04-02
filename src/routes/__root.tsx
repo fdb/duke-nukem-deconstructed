@@ -1,9 +1,11 @@
-import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { createRootRoute } from "@tanstack/react-router";
+import { GrpProvider } from "../context/grp-context";
+import { Layout } from "../components/layout";
 
 export const Route = createRootRoute({
   component: () => (
-    <div className="min-h-screen">
-      <Outlet />
-    </div>
+    <GrpProvider>
+      <Layout />
+    </GrpProvider>
   ),
 });
