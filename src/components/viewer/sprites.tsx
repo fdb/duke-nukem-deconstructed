@@ -106,14 +106,17 @@ function SpriteQuad({
   // Position and rotation
   const pos: [number, number, number] = [sprite.x, sprite.y, sprite.z];
 
+  // Build angle → Three.js Y rotation:
+  // Build: 0=east(+X), 512=north(+Y→+Z). Plane default normal = +Z.
+  // rotation.y = -(ang * 2π/2048) - π/2
+  const baseAng = -(sprite.ang * Math.PI * 2) / 2048 - Math.PI / 2;
+
   if (alignment === CSTAT_FLOOR) {
-    // Floor-aligned: rotate to lie flat
-    const ang = ((sprite.ang + 1024) & 2047) * (Math.PI * 2) / 2048;
     return (
       <mesh
         ref={meshRef}
         position={pos}
-        rotation={[-Math.PI / 2, 0, -ang]}
+        rotation={[-Math.PI / 2, 0, baseAng + Math.PI / 2]}
         geometry={geometry}
         material={material}
       />
@@ -121,13 +124,11 @@ function SpriteQuad({
   }
 
   if (alignment === CSTAT_WALL) {
-    // Wall-aligned: rotate by sprite angle
-    const ang = ((sprite.ang + 1024) & 2047) * (Math.PI * 2) / 2048;
     return (
       <mesh
         ref={meshRef}
         position={pos}
-        rotation={[0, -ang, 0]}
+        rotation={[0, baseAng, 0]}
         geometry={geometry}
         material={material}
       />
@@ -157,6 +158,12 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
   return (
     <>
       {sprites.map((sprite, i) => {
+        // Filter out invisible sprites:
+        // - cstat & 0x8000 = invisible flag
+        // - picnum < 11 = engine markers (SECTOREFFECTOR, ACTIVATOR, etc.)
+        if (sprite.cstat & 0x8000) return null;
+        if (sprite.picnum < 11) return null;
+
         const rect = uvLookup.get(sprite.picnum);
         if (!rect) return null;
 

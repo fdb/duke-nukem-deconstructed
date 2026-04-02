@@ -20,7 +20,9 @@ export function FlyCamera({ startPos, startAngle, speed = 5, onPositionChange }:
     if (initialized.current) return;
     initialized.current = true;
     camera.position.set(...startPos);
-    const radians = (startAngle * Math.PI * 2) / 2048;
+    // Build angle: 0=east(+X), 512=north(+Y→+Z), 1024=west(-X), 1536=south(-Z)
+    // Three.js rotation.y: 0→-Z, π/2→-X, -π/2→+X
+    const radians = -(startAngle * Math.PI * 2) / 2048 - Math.PI / 2;
     camera.rotation.set(0, radians, 0);
   }, [startPos, startAngle, camera]);
 
