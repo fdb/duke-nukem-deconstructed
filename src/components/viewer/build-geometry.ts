@@ -88,6 +88,7 @@ function buildSectorWalls(
       /** Height of this quad in raw Build Z units (abs(topZ - bottomZ)) */
       heightZ: number,
       shade: number = 0,
+      xpan: number = 0, ypan: number = 0,
     ) {
       positions.push(
         ax1, ay1, az1,  ax2, ay2, az2,  bx2, by2, bz2,
@@ -99,18 +100,18 @@ function buildSectorWalls(
       const th = dims?.h || 64;
 
       // From EDuke32 Polymer renderer (polymer.cpp line 3382-3383):
-      // u = (dist * 8 * xrepeat) / tileWidth  (dist is 0 at start, 1 at end)
-      // v = -(yref + vertex_y*16) / (tileHeight * 2048 / yrepeat)
-      // So: uRepeat = xrepeat * 8 / tileWidth (independent of wall length!)
-      //     vRepeat = heightZ * yrepeat / (tileHeight * 2048)
+      // u = ((dist * 8 * xrepeat) + xpanning) / tileWidth
+      // v = -(yref + vertex_y*16) / (tileHeight * 2048 / yrepeat) + ypancoef
       const uRepeat = (xr || 8) * 8 / tw;
       const vRepeat = heightZ * (yr || 8) / (th * 2048);
+      const uOff = xpan / tw;
+      const vOff = ypan / (th * 256 / (yr || 8));
 
       // Two triangles for the quad
       // Tri 1: TL, TR, BR
-      uvs.push(0, 0,  uRepeat, 0,  uRepeat, vRepeat);
+      uvs.push(uOff, vOff,  uRepeat + uOff, vOff,  uRepeat + uOff, vRepeat + vOff);
       // Tri 2: TL, BR, BL
-      uvs.push(0, 0,  uRepeat, vRepeat,  0, vRepeat);
+      uvs.push(uOff, vOff,  uRepeat + uOff, vRepeat + vOff,  uOff, vRepeat + vOff);
 
       picnums.push(picnum, picnum);
       // 6 vertices per quad, all same shade
@@ -123,7 +124,7 @@ function buildSectorWalls(
       pushQuad(
         x1, -ceilZ1, y1,  x2, -ceilZ2, y2,
         x2, -floorZ2, y2,  x1, -floorZ1, y1,
-        wall.picnum, wall.xRepeat, wall.yRepeat, heightZ, wall.shade,
+        wall.picnum, wall.xRepeat, wall.yRepeat, heightZ, wall.shade, wall.xPanning, wall.yPanning,
       );
     } else {
       const adjSector = map.sectors[wall.nextSector];
@@ -146,7 +147,7 @@ function buildSectorWalls(
         pushQuad(
           x1, -ceilZ1, y1,  x2, -ceilZ2, y2,
           x2, -adjCeilZ2, y2,  x1, -adjCeilZ1, y1,
-          pic, wall.xRepeat, wall.yRepeat, heightZ, wall.shade,
+          pic, wall.xRepeat, wall.yRepeat, heightZ, wall.shade, wall.xPanning, wall.yPanning,
         );
       }
       if (!bothParallaxFloor && (floorZ1 > adjFloorZ1 || floorZ2 > adjFloorZ2)) {
@@ -155,7 +156,7 @@ function buildSectorWalls(
         pushQuad(
           x1, -adjFloorZ1, y1,  x2, -adjFloorZ2, y2,
           x2, -floorZ2, y2,  x1, -floorZ1, y1,
-          wall.picnum, wall.xRepeat, wall.yRepeat, heightZ, wall.shade,
+          wall.picnum, wall.xRepeat, wall.yRepeat, heightZ, wall.shade, wall.xPanning, wall.yPanning,
         );
       }
 
@@ -175,7 +176,7 @@ function buildSectorWalls(
           pushQuad(
             x1, maskTop1, y1,  x2, maskTop2, y2,
             x2, maskBot2, y2,  x1, maskBot1, y1,
-            maskPic, wall.xRepeat, wall.yRepeat, heightZ, wall.shade,
+            maskPic, wall.xRepeat, wall.yRepeat, heightZ, wall.shade, wall.xPanning, wall.yPanning,
           );
         }
       }
