@@ -14,11 +14,11 @@ interface TileRect {
 export function buildTextureAtlas(
   picnums: number[],
   renderTile: (picnum: number) => Uint8Array | undefined,
-  getTileDims: (picnum: number) => { width: number; height: number } | undefined,
+  getTileDims: (picnum: number) => { w: number; h: number } | undefined,
 ): { texture: THREE.DataTexture; uvLookup: Map<number, TileRect> } {
   const unique = [...new Set(picnums)].filter((p) => {
     const dims = getTileDims(p);
-    return dims && dims.width > 0 && dims.height > 0;
+    return dims && dims.w > 0 && dims.h > 0;
   });
 
   // Simple shelf packing into a power-of-2 atlas
@@ -35,8 +35,8 @@ export function buildTextureAtlas(
     const rgba = renderTile(picnum);
     if (!rgba) continue;
 
-    const tw = dims.width;
-    const th = dims.height;
+    const tw = dims.w;
+    const th = dims.h;
 
     // Wrap to next shelf if needed
     if (shelfX + tw > ATLAS_SIZE) {
