@@ -21,43 +21,42 @@ const Z_SCALE = 1 / 8192;
 const XY_SCALE = 1 / 512;
 
 /** Custom shader that tiles textures within atlas sub-rects using fract() */
+/** Shader that tiles textures within atlas sub-rects and applies Build engine shade */
 function makeAtlasMaterial(atlas: THREE.DataTexture) {
   return new THREE.ShaderMaterial({
     uniforms: {
       atlas: { value: atlas },
-      ambientIntensity: { value: 0.85 },
     },
     vertexShader: `
       attribute vec4 atlasRect;
+      attribute float shade;
       varying vec2 vUv;
       varying vec4 vAtlasRect;
-      varying vec3 vNormal;
+      varying float vShade;
 
       void main() {
         vUv = uv;
         vAtlasRect = atlasRect;
-        vNormal = normalize(normalMatrix * normal);
+        vShade = shade;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: `
       uniform sampler2D atlas;
-      uniform float ambientIntensity;
       varying vec2 vUv;
       varying vec4 vAtlasRect;
-      varying vec3 vNormal;
+      varying float vShade;
 
       void main() {
         vec2 tiledUV = vAtlasRect.xy + fract(vUv) * vAtlasRect.zw;
         vec4 texColor = texture2D(atlas, tiledUV);
 
-        vec3 lightDir = normalize(vec3(0.3, 1.0, 0.5));
-        float diff = max(dot(vNormal, lightDir), 0.0) * (1.0 - ambientIntensity);
-        float light = ambientIntensity + diff;
-
         if (texColor.a < 0.1) discard;
 
-        gl_FragColor = vec4(texColor.rgb * light, texColor.a);
+        // Build engine shade: 0 = brightest, positive = darker, negative = overbright
+        // numShades is typically 32, shade range is roughly -8 to 31
+        float brightness = clamp(1.0 - vShade / 30.0, 0.05, 1.5);
+        gl_FragColor = vec4(texColor.rgb * brightness, texColor.a);
       }
     `,
     side: THREE.DoubleSide,

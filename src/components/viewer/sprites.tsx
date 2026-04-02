@@ -36,6 +36,7 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe, getTile }: Sprite
     const positions: number[] = [];
     const uvs: number[] = [];
     const atlasRects: number[] = [];
+    const spriteShades: number[] = [];
     const facing: number[] = []; // indices of face-camera quads for billboard update
 
     for (let si = 0; si < visible.length; si++) {
@@ -182,9 +183,10 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe, getTile }: Sprite
         uvs.push(fu0, fv0, fu1, fv0, fu1, fv1, fu0, fv0, fu1, fv1, fu0, fv1);
       }
 
-      // Atlas rect for all 6 vertices of this quad
+      // Atlas rect and shade for all 6 vertices of this quad
       for (let v = 0; v < 6; v++) {
         atlasRects.push(rect.x, rect.y, rect.w, rect.h);
+        spriteShades.push(sprite.shade);
       }
     }
 
@@ -192,6 +194,7 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe, getTile }: Sprite
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     geo.setAttribute("atlasRect", new THREE.Float32BufferAttribute(atlasRects, 4));
+    geo.setAttribute("shade", new THREE.Float32BufferAttribute(spriteShades, 1));
 
     // Store sprite data for billboard updates
     const facingData = facing.map((baseIdx) => {
@@ -251,11 +254,14 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe, getTile }: Sprite
       uniforms: { atlas: { value: atlas } },
       vertexShader: `
         attribute vec4 atlasRect;
+        attribute float shade;
         varying vec2 vUv;
         varying vec4 vAtlasRect;
+        varying float vShade;
         void main() {
           vUv = uv;
           vAtlasRect = atlasRect;
+          vShade = shade;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
@@ -263,11 +269,13 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe, getTile }: Sprite
         uniform sampler2D atlas;
         varying vec2 vUv;
         varying vec4 vAtlasRect;
+        varying float vShade;
         void main() {
           vec2 texUV = vAtlasRect.xy + vUv * vAtlasRect.zw;
           vec4 texColor = texture2D(atlas, texUV);
           if (texColor.a < 0.1) discard;
-          gl_FragColor = texColor;
+          float brightness = clamp(1.0 - vShade / 30.0, 0.05, 1.5);
+          gl_FragColor = vec4(texColor.rgb * brightness, texColor.a);
         }
       `,
       side: THREE.DoubleSide,

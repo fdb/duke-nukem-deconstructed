@@ -42,7 +42,7 @@ export interface LevelGeometry {
   wallPicnums: number[];
   floorPicnums: number[];
   ceilingPicnums: number[];
-  sprites: { x: number; y: number; z: number; picnum: number; ang: number; xRepeat: number; yRepeat: number; xOffset: number; yOffset: number; cstat: number }[];
+  sprites: { x: number; y: number; z: number; picnum: number; ang: number; xRepeat: number; yRepeat: number; xOffset: number; yOffset: number; cstat: number; shade: number }[];
   /** Base picnum for parallax sky (from first parallax ceiling sector), or -1 if none */
   skyPicnum: number;
 }
@@ -56,10 +56,11 @@ function buildSectorWalls(
   sector: BuildSector,
   map: BuildMap,
   getDims: GetTileDims,
-): { positions: number[]; uvs: number[]; picnums: number[] } {
+): { positions: number[]; uvs: number[]; picnums: number[]; shades: number[] } {
   const positions: number[] = [];
   const uvs: number[] = [];
   const picnums: number[] = [];
+  const shades: number[] = [];
   const firstWall = map.walls[sector.wallPtr];
 
   for (let i = 0; i < sector.wallNum; i++) {
@@ -86,6 +87,7 @@ function buildSectorWalls(
       xr: number, yr: number,
       /** Height of this quad in raw Build Z units (abs(topZ - bottomZ)) */
       heightZ: number,
+      shade: number = 0,
     ) {
       positions.push(
         ax1, ay1, az1,  ax2, ay2, az2,  bx2, by2, bz2,
@@ -111,6 +113,8 @@ function buildSectorWalls(
       uvs.push(0, 0,  uRepeat, vRepeat,  0, vRepeat);
 
       picnums.push(picnum, picnum);
+      // 6 vertices per quad, all same shade
+      for (let s = 0; s < 6; s++) shades.push(shade);
     }
 
     if (wall.nextSector < 0) {
@@ -119,7 +123,7 @@ function buildSectorWalls(
       pushQuad(
         x1, -ceilZ1, y1,  x2, -ceilZ2, y2,
         x2, -floorZ2, y2,  x1, -floorZ1, y1,
-        wall.picnum, wall.xRepeat, wall.yRepeat, heightZ,
+        wall.picnum, wall.xRepeat, wall.yRepeat, heightZ, wall.shade,
       );
     } else {
       const adjSector = map.sectors[wall.nextSector];
@@ -142,7 +146,7 @@ function buildSectorWalls(
         pushQuad(
           x1, -ceilZ1, y1,  x2, -ceilZ2, y2,
           x2, -adjCeilZ2, y2,  x1, -adjCeilZ1, y1,
-          pic, wall.xRepeat, wall.yRepeat, heightZ,
+          pic, wall.xRepeat, wall.yRepeat, heightZ, wall.shade,
         );
       }
       if (!bothParallaxFloor && (floorZ1 > adjFloorZ1 || floorZ2 > adjFloorZ2)) {
@@ -151,7 +155,7 @@ function buildSectorWalls(
         pushQuad(
           x1, -adjFloorZ1, y1,  x2, -adjFloorZ2, y2,
           x2, -floorZ2, y2,  x1, -floorZ1, y1,
-          wall.picnum, wall.xRepeat, wall.yRepeat, heightZ,
+          wall.picnum, wall.xRepeat, wall.yRepeat, heightZ, wall.shade,
         );
       }
 
@@ -171,14 +175,14 @@ function buildSectorWalls(
           pushQuad(
             x1, maskTop1, y1,  x2, maskTop2, y2,
             x2, maskBot2, y2,  x1, maskBot1, y1,
-            maskPic, wall.xRepeat, wall.yRepeat, heightZ,
+            maskPic, wall.xRepeat, wall.yRepeat, heightZ, wall.shade,
           );
         }
       }
     }
   }
 
-  return { positions, uvs, picnums };
+  return { positions, uvs, picnums, shades };
 }
 
 /**
@@ -190,7 +194,7 @@ function triangulateSector(
   map: BuildMap,
   isCeiling: boolean,
   getDims: GetTileDims,
-): { positions: number[]; uvs: number[]; picnum: number; triCount: number } {
+): { positions: number[]; uvs: number[]; picnum: number; shade: number; triCount: number } {
   const positions: number[] = [];
   const uvs: number[] = [];
   const verts: [number, number, number][] = [];
@@ -269,19 +273,23 @@ function triangulateSector(
   }
 
   const triCount = Math.max(0, verts.length - 2);
-  return { positions, uvs, picnum, triCount };
+  const shade = isCeiling ? sector.ceilingShade : sector.floorShade;
+  return { positions, uvs, picnum, shade, triCount };
 }
 
 export function buildLevelGeometry(map: BuildMap, getDims: GetTileDims): LevelGeometry {
   const allWallPos: number[] = [];
   const allWallUvs: number[] = [];
   const allWallPicnums: number[] = [];
+  const allWallShades: number[] = [];
   const allFloorPos: number[] = [];
   const allFloorUvs: number[] = [];
   const allFloorPicnums: number[] = [];
+  const allFloorShades: number[] = [];
   const allCeilPos: number[] = [];
   const allCeilUvs: number[] = [];
   const allCeilPicnums: number[] = [];
+  const allCeilShades: number[] = [];
 
   // Find parallax sky tile (first parallax ceiling sector)
   let skyPicnum = -1;
@@ -296,36 +304,47 @@ export function buildLevelGeometry(map: BuildMap, getDims: GetTileDims): LevelGe
     allWallPos.push(...wallData.positions);
     allWallUvs.push(...wallData.uvs);
     allWallPicnums.push(...wallData.picnums);
+    allWallShades.push(...wallData.shades);
 
     // Skip parallax sectors — bit 0 of ceilingStat/floorStat means parallax sky
     if (!(sector.floorStat & 1)) {
       const floorData = triangulateSector(sector, map, false, getDims);
       allFloorPos.push(...floorData.positions);
       allFloorUvs.push(...floorData.uvs);
-      for (let t = 0; t < floorData.triCount; t++) allFloorPicnums.push(floorData.picnum);
+      for (let t = 0; t < floorData.triCount; t++) {
+        allFloorPicnums.push(floorData.picnum);
+        // 3 vertices per triangle, all same shade
+        for (let v = 0; v < 3; v++) allFloorShades.push(floorData.shade);
+      }
     }
 
     if (!(sector.ceilingStat & 1)) {
       const ceilData = triangulateSector(sector, map, true, getDims);
       allCeilPos.push(...ceilData.positions);
       allCeilUvs.push(...ceilData.uvs);
-      for (let t = 0; t < ceilData.triCount; t++) allCeilPicnums.push(ceilData.picnum);
+      for (let t = 0; t < ceilData.triCount; t++) {
+        allCeilPicnums.push(ceilData.picnum);
+        for (let v = 0; v < 3; v++) allCeilShades.push(ceilData.shade);
+      }
     }
   }
 
-  function makeGeo(pos: number[], uv: number[]) {
+  function makeGeo(pos: number[], uv: number[], shade: number[]) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     if (uv.length > 0) {
       geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
     }
+    if (shade.length > 0) {
+      geo.setAttribute("shade", new THREE.Float32BufferAttribute(shade, 1));
+    }
     geo.computeVertexNormals();
     return geo;
   }
 
-  const walls = makeGeo(allWallPos, allWallUvs);
-  const floors = makeGeo(allFloorPos, allFloorUvs);
-  const ceilings = makeGeo(allCeilPos, allCeilUvs);
+  const walls = makeGeo(allWallPos, allWallUvs, allWallShades);
+  const floors = makeGeo(allFloorPos, allFloorUvs, allFloorShades);
+  const ceilings = makeGeo(allCeilPos, allCeilUvs, allCeilShades);
 
   const sprites = map.sprites.map((s) => ({
     x: s.x * XY_SCALE,
@@ -338,6 +357,7 @@ export function buildLevelGeometry(map: BuildMap, getDims: GetTileDims): LevelGe
     xOffset: s.xOffset,
     yOffset: s.yOffset,
     cstat: s.cstat,
+    shade: s.shade,
   }));
 
   return { walls, floors, ceilings, wallPicnums: allWallPicnums, floorPicnums: allFloorPicnums, ceilingPicnums: allCeilPicnums, sprites, skyPicnum };
