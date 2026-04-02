@@ -266,9 +266,15 @@ function triangulateSector(
       // Stat bit 5 (32): flip Y
       if (stat & 32) tey = -tey;
 
+      // Panning from EDuke32 polymer.cpp lines 2815-2832
+      const xpan = isCeiling ? sector.ceilingXPanning : sector.floorXPanning;
+      const ypan = isCeiling ? sector.ceilingYPanning : sector.floorYPanning;
+      const xpancoef = xpan ? xpan / 256 : 0;
+      const ypancoef = ypan ? ypan / 256 : 0;
+
       uvs.push(
-        tex / (tw * scaleCoef),
-        tey / (th * scaleCoef),
+        tex / (tw * scaleCoef) + xpancoef,
+        tey / (th * scaleCoef) + ypancoef,
       );
     }
   }
