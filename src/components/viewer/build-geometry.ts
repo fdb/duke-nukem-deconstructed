@@ -79,6 +79,8 @@ function buildSectorWalls(
       bx1: number, by1: number, bz1: number,
       picnum: number,
       xr: number, yr: number,
+      /** Height of this quad in raw Build Z units (abs(topZ - bottomZ)) */
+      heightZ: number,
     ) {
       positions.push(
         ax1, ay1, az1,  ax2, ay2, az2,  bx2, by2, bz2,
@@ -89,13 +91,11 @@ function buildSectorWalls(
       const tw = dims?.w || 64;
       const th = dims?.h || 64;
 
-      // Height of the quad in map units (approximate from Three.js coords)
-      const topY = Math.min(ay1, ay2);   // ceiling (more negative = higher in Build coords)
-      const botY = Math.max(by1, by2);   // floor
-      const wallHeight = (botY - topY) / Z_SCALE * -1; // back to map units, roughly
-
+      // Build engine texture mapping:
+      // Horizontal: one tile covers (tileWidth * 16 / xrepeat) map XY-units
+      // Vertical: Z units are 1/16 of XY units, one tile covers (tileHeight * 256 / yrepeat) Z-units
       const uRepeat = wallLen * (xr || 8) / (tw * 16);
-      const vRepeat = Math.abs(wallHeight) * (yr || 8) / (th * 256);
+      const vRepeat = heightZ * (yr || 8) / (th * 256);
 
       // Two triangles for the quad
       // Tri 1: TL, TR, BR
@@ -107,10 +107,12 @@ function buildSectorWalls(
     }
 
     if (wall.nextSector < 0) {
+      // Solid wall: full height from ceiling to floor
+      const heightZ = Math.abs(sector.ceilingZ - sector.floorZ);
       pushQuad(
         x1, -ceilZ1, y1,  x2, -ceilZ2, y2,
         x2, -floorZ2, y2,  x1, -floorZ1, y1,
-        wall.picnum, wall.xRepeat, wall.yRepeat,
+        wall.picnum, wall.xRepeat, wall.yRepeat, heightZ,
       );
     } else {
       const adjSector = map.sectors[wall.nextSector];
@@ -122,18 +124,22 @@ function buildSectorWalls(
       const adjFloorZ2 = getSlopeZ(adjSector.floorZ, adjSector.floorHeinum, nextWall.x, nextWall.y, adjFirstWall, map.walls);
 
       if (ceilZ1 < adjCeilZ1 || ceilZ2 < adjCeilZ2) {
+        // Upper wall: height from our ceiling to adjacent ceiling
+        const heightZ = Math.abs(sector.ceilingZ - adjSector.ceilingZ);
         const pic = wall.overPicnum || wall.picnum;
         pushQuad(
           x1, -ceilZ1, y1,  x2, -ceilZ2, y2,
           x2, -adjCeilZ2, y2,  x1, -adjCeilZ1, y1,
-          pic, wall.xRepeat, wall.yRepeat,
+          pic, wall.xRepeat, wall.yRepeat, heightZ,
         );
       }
       if (floorZ1 > adjFloorZ1 || floorZ2 > adjFloorZ2) {
+        // Lower wall: height from adjacent floor to our floor
+        const heightZ = Math.abs(adjSector.floorZ - sector.floorZ);
         pushQuad(
           x1, -adjFloorZ1, y1,  x2, -adjFloorZ2, y2,
           x2, -floorZ2, y2,  x1, -floorZ1, y1,
-          wall.picnum, wall.xRepeat, wall.yRepeat,
+          wall.picnum, wall.xRepeat, wall.yRepeat, heightZ,
         );
       }
     }
