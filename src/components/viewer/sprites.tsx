@@ -175,18 +175,13 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
       // Quad verts: tl, tr, br, tl, br, bl (6 verts)
       const rx = right.x, rz = right.z;
 
-      // TL
-      posAttr.setXYZ(baseIdx, cx - halfW * rx, cy + halfH, cz - halfW * rz);
-      // TR
-      posAttr.setXYZ(baseIdx + 1, cx + halfW * rx, cy + halfH, cz + halfW * rz);
-      // BR
-      posAttr.setXYZ(baseIdx + 2, cx - halfW * rx, cy - halfH, cz - halfW * rz);
-      // TL (repeat)
-      posAttr.setXYZ(baseIdx + 3, cx - halfW * rx, cy + halfH, cz - halfW * rz);
-      // BR (repeat)
-      posAttr.setXYZ(baseIdx + 4, cx + halfW * rx, cy - halfH, cz + halfW * rz);
-      // BL
-      posAttr.setXYZ(baseIdx + 5, cx + halfW * rx, cy - halfH, cz + halfW * rz);
+      // Tri 1: TL, TR, BR — Tri 2: TL, BR, BL
+      posAttr.setXYZ(baseIdx,     cx - halfW * rx, cy + halfH, cz - halfW * rz); // TL
+      posAttr.setXYZ(baseIdx + 1, cx + halfW * rx, cy + halfH, cz + halfW * rz); // TR
+      posAttr.setXYZ(baseIdx + 2, cx + halfW * rx, cy - halfH, cz + halfW * rz); // BR
+      posAttr.setXYZ(baseIdx + 3, cx - halfW * rx, cy + halfH, cz - halfW * rz); // TL
+      posAttr.setXYZ(baseIdx + 4, cx + halfW * rx, cy - halfH, cz + halfW * rz); // BR
+      posAttr.setXYZ(baseIdx + 5, cx - halfW * rx, cy - halfH, cz - halfW * rz); // BL
     }
 
     posAttr.needsUpdate = true;
@@ -213,7 +208,7 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
         varying vec2 vUv;
         varying vec4 vAtlasRect;
         void main() {
-          vec2 texUV = vAtlasRect.xy + vec2(vUv.x, 1.0 - vUv.y) * vAtlasRect.zw;
+          vec2 texUV = vAtlasRect.xy + vUv * vAtlasRect.zw;
           vec4 texColor = texture2D(atlas, texUV);
           if (texColor.a < 0.1) discard;
           gl_FragColor = texColor;

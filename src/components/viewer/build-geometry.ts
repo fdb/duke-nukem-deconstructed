@@ -214,15 +214,20 @@ export function buildLevelGeometry(map: BuildMap, getDims: GetTileDims): LevelGe
     allWallUvs.push(...wallData.uvs);
     allWallPicnums.push(...wallData.picnums);
 
-    const floorData = triangulateSector(sector, map, false, getDims);
-    allFloorPos.push(...floorData.positions);
-    allFloorUvs.push(...floorData.uvs);
-    for (let t = 0; t < floorData.triCount; t++) allFloorPicnums.push(floorData.picnum);
+    // Skip parallax sectors — bit 0 of ceilingStat/floorStat means parallax sky
+    if (!(sector.floorStat & 1)) {
+      const floorData = triangulateSector(sector, map, false, getDims);
+      allFloorPos.push(...floorData.positions);
+      allFloorUvs.push(...floorData.uvs);
+      for (let t = 0; t < floorData.triCount; t++) allFloorPicnums.push(floorData.picnum);
+    }
 
-    const ceilData = triangulateSector(sector, map, true, getDims);
-    allCeilPos.push(...ceilData.positions);
-    allCeilUvs.push(...ceilData.uvs);
-    for (let t = 0; t < ceilData.triCount; t++) allCeilPicnums.push(ceilData.picnum);
+    if (!(sector.ceilingStat & 1)) {
+      const ceilData = triangulateSector(sector, map, true, getDims);
+      allCeilPos.push(...ceilData.positions);
+      allCeilUvs.push(...ceilData.uvs);
+      for (let t = 0; t < ceilData.triCount; t++) allCeilPicnums.push(ceilData.picnum);
+    }
   }
 
   function makeGeo(pos: number[], uv: number[]) {
