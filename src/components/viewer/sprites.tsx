@@ -42,7 +42,8 @@ function makeSpriteMaterial(atlas: THREE.DataTexture) {
       varying vec4 vAtlasRect;
 
       void main() {
-        vec2 texUV = vAtlasRect.xy + vUv * vAtlasRect.zw;
+        // Flip V: atlas stores rows top-down, PlaneGeometry UVs go bottom-up
+        vec2 texUV = vAtlasRect.xy + vec2(vUv.x, 1.0 - vUv.y) * vAtlasRect.zw;
         vec4 texColor = texture2D(atlas, texUV);
         if (texColor.a < 0.1) discard;
         gl_FragColor = texColor;
