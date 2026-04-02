@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import type { BuildMap } from "../lib/types";
 
 interface Map2DProps {
@@ -10,7 +10,31 @@ interface Map2DProps {
 
 export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const bounds = useRef({ minX: 0, maxX: 0, minY: 0, maxY: 0, scale: 1, offX: 0, offY: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const isPanning = useRef(false);
+  const lastMouse = useRef({ x: 0, y: 0 });
+  const baseBounds = useRef({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
+
+  // Reset zoom/pan when map changes
+  useEffect(() => { setZoom(1); setPanX(0); setPanY(0); }, [map]);
+
+  // Compute transforms
+  function getTransform() {
+    const { minX, maxX, minY, maxY } = baseBounds.current;
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+    const padding = 20;
+    const baseScale = Math.min((width - padding * 2) / rangeX, (height - padding * 2) / rangeY);
+    const scale = baseScale * zoom;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    return { scale, centerX, centerY };
+  }
+
+  function tx(x: number) { const t = getTransform(); return width / 2 + (x - t.centerX) * t.scale + panX; }
+  function ty(y: number) { const t = getTransform(); return height / 2 + (y - t.centerY) * t.scale + panY; }
 
   const draw = useCallback(() => {
     const canvas = ref.current;
@@ -24,17 +48,18 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
       minX = Math.min(minX, w.x); maxX = Math.max(maxX, w.x);
       minY = Math.min(minY, w.y); maxY = Math.max(maxY, w.y);
     }
+    baseBounds.current = { minX, maxX, minY, maxY };
 
-    const padding = 20;
     const rangeX = maxX - minX || 1;
     const rangeY = maxY - minY || 1;
-    const scale = Math.min((width - padding * 2) / rangeX, (height - padding * 2) / rangeY);
-    const offX = padding + ((width - padding * 2) - rangeX * scale) / 2;
-    const offY = padding + ((height - padding * 2) - rangeY * scale) / 2;
-    bounds.current = { minX, maxX, minY, maxY, scale, offX, offY };
+    const padding = 20;
+    const baseScale = Math.min((width - padding * 2) / rangeX, (height - padding * 2) / rangeY);
+    const scale = baseScale * zoom;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
 
-    function tx(x: number) { return offX + (x - minX) * scale; }
-    function ty(y: number) { return offY + (y - minY) * scale; }
+    function lx(x: number) { return width / 2 + (x - centerX) * scale + panX; }
+    function ly(y: number) { return height / 2 + (y - centerY) * scale + panY; }
 
     ctx.fillStyle = "#18181b";
     ctx.fillRect(0, 0, width, height);
@@ -44,11 +69,11 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
       let wallIdx = sector.wallPtr;
       const firstWall = map.walls[wallIdx];
       if (!firstWall) continue;
-      ctx.moveTo(tx(firstWall.x), ty(firstWall.y));
+      ctx.moveTo(lx(firstWall.x), ly(firstWall.y));
       for (let i = 0; i < sector.wallNum; i++) {
         const wall = map.walls[wallIdx];
         const next = map.walls[wall.point2];
-        ctx.lineTo(tx(next.x), ty(next.y));
+        ctx.lineTo(lx(next.x), ly(next.y));
         wallIdx = wall.point2;
       }
       ctx.closePath();
@@ -60,38 +85,51 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
       const next = map.walls[wall.point2];
       if (!next) continue;
       ctx.beginPath();
-      ctx.moveTo(tx(wall.x), ty(wall.y));
-      ctx.lineTo(tx(next.x), ty(next.y));
+      ctx.moveTo(lx(wall.x), ly(wall.y));
+      ctx.lineTo(lx(next.x), ly(next.y));
       ctx.strokeStyle = wall.nextSector >= 0 ? "#71717a" : "#a1a1aa";
       ctx.lineWidth = wall.nextSector >= 0 ? 0.5 : 1;
       ctx.stroke();
     }
 
+    const spriteRadius = Math.max(1.5, 2 * Math.min(zoom, 3));
     for (const sprite of map.sprites) {
       ctx.beginPath();
-      ctx.arc(tx(sprite.x), ty(sprite.y), 2, 0, Math.PI * 2);
+      ctx.arc(lx(sprite.x), ly(sprite.y), spriteRadius, 0, Math.PI * 2);
       ctx.fillStyle = "#f97316";
       ctx.fill();
     }
 
     const ps = map.playerStart;
     ctx.beginPath();
-    ctx.arc(tx(ps.x), ty(ps.y), 4, 0, Math.PI * 2);
+    ctx.arc(lx(ps.x), ly(ps.y), Math.max(3, 4 * Math.min(zoom, 3)), 0, Math.PI * 2);
     ctx.fillStyle = "#22c55e";
     ctx.fill();
-  }, [map, width, height]);
+  }, [map, width, height, zoom, panX, panY]);
 
   useEffect(() => { draw(); }, [draw]);
 
-  function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!onSectorClick) return;
+  function canvasToMap(clientX: number, clientY: number) {
     const canvas = ref.current!;
     const rect = canvas.getBoundingClientRect();
-    const cx = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const cy = (e.clientY - rect.top) * (canvas.height / rect.height);
-    const { minX, minY, scale, offX, offY } = bounds.current;
-    const mx = (cx - offX) / scale + minX;
-    const my = (cy - offY) / scale + minY;
+    const cx = (clientX - rect.left) * (canvas.width / rect.width);
+    const cy = (clientY - rect.top) * (canvas.height / rect.height);
+    const { minX, maxX, minY, maxY } = baseBounds.current;
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+    const padding = 20;
+    const baseScale = Math.min((width - padding * 2) / rangeX, (height - padding * 2) / rangeY);
+    const scale = baseScale * zoom;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const mx = (cx - width / 2 - panX) / scale + centerX;
+    const my = (cy - height / 2 - panY) / scale + centerY;
+    return { mx, my };
+  }
+
+  function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!onSectorClick || isPanning.current) return;
+    const { mx, my } = canvasToMap(e.clientX, e.clientY);
 
     for (let si = 0; si < map.sectors.length; si++) {
       const sector = map.sectors[si];
@@ -100,8 +138,7 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
       for (let i = 0; i < sector.wallNum; i++) {
         const wall = map.walls[wi];
         const next = map.walls[wall.point2];
-        const x1 = wall.x, y1 = wall.y, x2 = next.x, y2 = next.y;
-        if ((y1 > my) !== (y2 > my) && mx < ((x2 - x1) * (my - y1)) / (y2 - y1) + x1) {
+        if ((wall.y > my) !== (next.y > my) && mx < ((next.x - wall.x) * (my - wall.y)) / (next.y - wall.y) + wall.x) {
           inside = !inside;
         }
         wi = wall.point2;
@@ -110,5 +147,54 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
     }
   }
 
-  return <canvas ref={ref} className="cursor-crosshair" onClick={handleClick} />;
+  function handleWheel(e: React.WheelEvent<HTMLCanvasElement>) {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newZoom = Math.max(0.1, Math.min(50, zoom * factor));
+
+    // Zoom towards mouse position
+    const canvas = ref.current!;
+    const rect = canvas.getBoundingClientRect();
+    const cx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const cy = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const dx = cx - width / 2;
+    const dy = cy - height / 2;
+    const ratio = 1 - newZoom / zoom;
+
+    setPanX((p) => p + (dx - p) * ratio);
+    setPanY((p) => p + (dy - p) * ratio);
+    setZoom(newZoom);
+  }
+
+  function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    // Middle click or right click to pan
+    if (e.button === 1 || e.button === 2) {
+      isPanning.current = true;
+      lastMouse.current = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+    }
+  }
+
+  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!isPanning.current) return;
+    setPanX((p) => p + e.clientX - lastMouse.current.x);
+    setPanY((p) => p + e.clientY - lastMouse.current.y);
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+  }
+
+  function handleMouseUp() { isPanning.current = false; }
+
+  return (
+    <canvas
+      ref={ref}
+      className="cursor-crosshair"
+      onClick={handleClick}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onContextMenu={(e) => e.preventDefault()}
+    />
+  );
 }
