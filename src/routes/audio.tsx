@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useMemo, useCallback } from "react";
 import { useGrp } from "../context/grp-context";
-import { parseVoc } from "../lib/voc";
+import { parseVoc, vocToWav } from "../lib/voc";
 
 export const Route = createFileRoute("/audio")({
   component: AudioPage,
@@ -32,6 +32,10 @@ function AudioPage() {
       const ctx = audioCtxRef.current;
 
       const vocData = parseVoc(archive.getFile(name));
+      if (vocData.samples.length === 0) {
+        setPlaying(null);
+        return;
+      }
       const buffer = ctx.createBuffer(1, vocData.samples.length, vocData.sampleRate);
       buffer.getChannelData(0).set(vocData.samples);
 
@@ -51,6 +55,36 @@ function AudioPage() {
     sourceRef.current?.stop();
     setPlaying(null);
   }, []);
+
+  const downloadVocAsWav = useCallback(
+    (name: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const vocData = parseVoc(archive.getFile(name));
+      if (vocData.samples.length === 0) return;
+      const blob = vocToWav(vocData);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name.replace(/\.VOC$/i, ".wav");
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [archive],
+  );
+
+  const downloadMid = useCallback(
+    (name: string) => {
+      const data = archive.getFile(name);
+      const blob = new Blob([data], { type: "audio/midi" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [archive],
+  );
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
@@ -72,6 +106,7 @@ function AudioPage() {
                 <th className="p-2 font-medium w-8"></th>
                 <th className="p-2 font-medium">Name</th>
                 <th className="p-2 font-medium text-right">Size</th>
+                <th className="p-2 font-medium w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -92,6 +127,15 @@ function AudioPage() {
                   </td>
                   <td className="p-2 mono text-zinc-100">{f.name}</td>
                   <td className="p-2 mono text-zinc-400 text-right">{f.size.toLocaleString()}</td>
+                  <td className="p-2 text-center">
+                    <button
+                      onClick={(e) => downloadVocAsWav(f.name, e)}
+                      className="text-zinc-600 hover:text-orange-500 text-xs"
+                      title="Download as WAV"
+                    >
+                      ↓
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -109,6 +153,7 @@ function AudioPage() {
               <th className="pb-2 font-medium">Name</th>
               <th className="pb-2 font-medium text-right">Size</th>
               <th className="pb-2 font-medium pl-4">Note</th>
+              <th className="pb-2 font-medium w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -118,6 +163,15 @@ function AudioPage() {
                 <td className="py-2 mono text-zinc-400 text-right">{f.size.toLocaleString()}</td>
                 <td className="py-2 text-zinc-500 pl-4">
                   {f.name === "GRABBAG.MID" ? "Main theme" : "Level music"}
+                </td>
+                <td className="py-2 text-center">
+                  <button
+                    onClick={() => downloadMid(f.name)}
+                    className="text-zinc-600 hover:text-orange-500 text-xs"
+                    title="Download MIDI"
+                  >
+                    ↓
+                  </button>
                 </td>
               </tr>
             ))}
