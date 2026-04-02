@@ -81,8 +81,19 @@ function SpriteQuad({
     meshRef.current.quaternion.copy(camera.quaternion);
   });
 
+  // Build engine sprites: bottom edge at Z position by default,
+  // centered if cstat & 128 (YCENTER). From Polymer vertsprite: y goes 0→1 (bottom→top).
+  const yCentered = !!(sprite.cstat & 128);
+
   // Build geometry with atlas rect as attribute
   const geometry = new THREE.PlaneGeometry(worldW, worldH);
+
+  // Shift geometry so bottom edge is at y=0 (not centered)
+  // Unless YCENTER flag is set, then keep centered
+  if (!yCentered && alignment !== CSTAT_FLOOR) {
+    geometry.translate(0, worldH / 2, 0);
+  }
+
   const rectAttr = new Float32Array(4 * 4); // 4 vertices × vec4
   for (let i = 0; i < 4; i++) {
     rectAttr[i * 4] = uvRect.x;
