@@ -91,11 +91,13 @@ function buildSectorWalls(
       const tw = dims?.w || 64;
       const th = dims?.h || 64;
 
-      // Build engine texture mapping:
-      // Horizontal: one tile covers (tileWidth * 16 / xrepeat) map XY-units
-      // Vertical: Z units are 1/16 of XY units, one tile covers (tileHeight * 256 / yrepeat) Z-units
-      const uRepeat = wallLen * (xr || 8) / (tw * 16);
-      const vRepeat = heightZ * (yr || 8) / (th * 256);
+      // From EDuke32 Polymer renderer (polymer.cpp line 3382-3383):
+      // u = (dist * 8 * xrepeat) / tileWidth  (dist is 0 at start, 1 at end)
+      // v = -(yref + vertex_y*16) / (tileHeight * 2048 / yrepeat)
+      // So: uRepeat = xrepeat * 8 / tileWidth (independent of wall length!)
+      //     vRepeat = heightZ * yrepeat / (tileHeight * 2048)
+      const uRepeat = (xr || 8) * 8 / tw;
+      const vRepeat = heightZ * (yr || 8) / (th * 2048);
 
       // Two triangles for the quad
       // Tri 1: TL, TR, BR
