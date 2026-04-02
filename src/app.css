@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss" source("../src");
 
 :root {
   --color-accent: oklch(0.646 0.222 41.116); /* orange-500 */
