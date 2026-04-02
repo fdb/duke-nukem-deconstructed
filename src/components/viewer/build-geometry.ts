@@ -7,6 +7,13 @@ const XY_SCALE = 1 / 512;
 /** Tile dims lookup: returns {w, h} in pixels for a given picnum */
 export type GetTileDims = (picnum: number) => { w: number; h: number } | undefined;
 
+/**
+ * Compute Z height at a point accounting for sector slope.
+ * From EDuke32 engine.cpp getzsofslopeptr() lines 14289-14310:
+ *   j = dmulscale3(dx, py-wy, -dy, px-wx)  → perpDist * wallLen / 8
+ *   i = nsqrtasm(dx²+dy²) << 5              → wallLen * 32
+ *   z_offset = heinum * j / i               → heinum * perpDist / 256
+ */
 function getSlopeZ(
   baseZ: number,
   heinum: number,
@@ -21,10 +28,11 @@ function getSlopeZ(
   const dy = nextWall.y - firstWall.y;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len === 0) return baseZ * Z_SCALE;
+  // Perpendicular distance from point to first wall line
   const nx = -dy / len;
   const ny = dx / len;
   const dist = (px - firstWall.x) * nx + (py - firstWall.y) * ny;
-  return (baseZ + (heinum * dist) / 4096) * Z_SCALE;
+  return (baseZ + (heinum * dist) / 256) * Z_SCALE;
 }
 
 export interface LevelGeometry {
