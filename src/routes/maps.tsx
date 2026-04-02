@@ -47,10 +47,9 @@ function MapsPage() {
         <span className="text-zinc-500 text-sm">
           {map.sectors.length} sectors · {map.walls.length} walls · {map.sprites.length} sprites
         </span>
-        {/* Link to viewer will be active once Task 17 adds the route */}
         <Link
-          to={"/viewer/$map" as "/maps"}
-          params={{ map: level.file.replace(".MAP", "") } as Record<string, never>}
+          to="/viewer/$map"
+          params={{ map: level.file.replace(".MAP", "") }}
           className="ml-auto text-sm bg-orange-500 text-zinc-950 px-4 py-1 font-semibold no-underline hover:bg-orange-400"
         >
           Open in 3D →

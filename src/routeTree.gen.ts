@@ -9,9 +9,34 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TilesRouteImport } from './routes/tiles'
+import { Route as PaletteRouteImport } from './routes/palette'
+import { Route as MapsRouteImport } from './routes/maps'
+import { Route as GrpRouteImport } from './routes/grp'
 import { Route as ArchiveRouteImport } from './routes/archive'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ViewerMapRouteImport } from './routes/viewer.$map'
 
+const TilesRoute = TilesRouteImport.update({
+  id: '/tiles',
+  path: '/tiles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaletteRoute = PaletteRouteImport.update({
+  id: '/palette',
+  path: '/palette',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapsRoute = MapsRouteImport.update({
+  id: '/maps',
+  path: '/maps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GrpRoute = GrpRouteImport.update({
+  id: '/grp',
+  path: '/grp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ArchiveRoute = ArchiveRouteImport.update({
   id: '/archive',
   path: '/archive',
@@ -22,35 +47,110 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ViewerMapRoute = ViewerMapRouteImport.update({
+  id: '/viewer/$map',
+  path: '/viewer/$map',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/archive': typeof ArchiveRoute
+  '/grp': typeof GrpRoute
+  '/maps': typeof MapsRoute
+  '/palette': typeof PaletteRoute
+  '/tiles': typeof TilesRoute
+  '/viewer/$map': typeof ViewerMapRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/archive': typeof ArchiveRoute
+  '/grp': typeof GrpRoute
+  '/maps': typeof MapsRoute
+  '/palette': typeof PaletteRoute
+  '/tiles': typeof TilesRoute
+  '/viewer/$map': typeof ViewerMapRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/archive': typeof ArchiveRoute
+  '/grp': typeof GrpRoute
+  '/maps': typeof MapsRoute
+  '/palette': typeof PaletteRoute
+  '/tiles': typeof TilesRoute
+  '/viewer/$map': typeof ViewerMapRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/archive'
+  fullPaths:
+    | '/'
+    | '/archive'
+    | '/grp'
+    | '/maps'
+    | '/palette'
+    | '/tiles'
+    | '/viewer/$map'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/archive'
-  id: '__root__' | '/' | '/archive'
+  to:
+    | '/'
+    | '/archive'
+    | '/grp'
+    | '/maps'
+    | '/palette'
+    | '/tiles'
+    | '/viewer/$map'
+  id:
+    | '__root__'
+    | '/'
+    | '/archive'
+    | '/grp'
+    | '/maps'
+    | '/palette'
+    | '/tiles'
+    | '/viewer/$map'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ArchiveRoute: typeof ArchiveRoute
+  GrpRoute: typeof GrpRoute
+  MapsRoute: typeof MapsRoute
+  PaletteRoute: typeof PaletteRoute
+  TilesRoute: typeof TilesRoute
+  ViewerMapRoute: typeof ViewerMapRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tiles': {
+      id: '/tiles'
+      path: '/tiles'
+      fullPath: '/tiles'
+      preLoaderRoute: typeof TilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/palette': {
+      id: '/palette'
+      path: '/palette'
+      fullPath: '/palette'
+      preLoaderRoute: typeof PaletteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/maps': {
+      id: '/maps'
+      path: '/maps'
+      fullPath: '/maps'
+      preLoaderRoute: typeof MapsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/grp': {
+      id: '/grp'
+      path: '/grp'
+      fullPath: '/grp'
+      preLoaderRoute: typeof GrpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/archive': {
       id: '/archive'
       path: '/archive'
@@ -65,12 +165,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/viewer/$map': {
+      id: '/viewer/$map'
+      path: '/viewer/$map'
+      fullPath: '/viewer/$map'
+      preLoaderRoute: typeof ViewerMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ArchiveRoute: ArchiveRoute,
+  GrpRoute: GrpRoute,
+  MapsRoute: MapsRoute,
+  PaletteRoute: PaletteRoute,
+  TilesRoute: TilesRoute,
+  ViewerMapRoute: ViewerMapRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
