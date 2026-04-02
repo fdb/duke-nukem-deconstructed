@@ -20,7 +20,7 @@ export const Route = createFileRoute("/viewer/$map")({
 
 function ViewerPage() {
   const { map: mapParam } = Route.useParams();
-  const { getMap } = useGrp();
+  const { getMap, renderTile, getTile } = useGrp();
 
   const level = LEVELS.find((l) => l.id === mapParam) ?? LEVELS[0];
   const map = getMap(level.file);
@@ -34,7 +34,7 @@ function ViewerPage() {
 
   return (
     <div className="relative w-full h-[calc(100vh-49px)]">
-      <ViewerScene map={map} wireframe={wireframe} onPositionChange={handlePos} />
+      <ViewerScene map={map} wireframe={wireframe} renderTile={renderTile} getTile={getTile} onPositionChange={handlePos} />
       <Hud
         position={position}
         wireframe={wireframe}

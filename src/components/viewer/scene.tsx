@@ -1,35 +1,75 @@
 import { useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { buildLevelGeometry } from "./build-geometry";
+import { buildLevelGeometry, assignAtlasUVs } from "./build-geometry";
+import { buildTextureAtlas } from "./texture-atlas";
 import { FlyCamera } from "./fly-camera";
-import type { BuildMap } from "../../lib/types";
+import type { BuildMap, ArtTile } from "../../lib/types";
 
 interface ViewerSceneProps {
   map: BuildMap;
   wireframe: boolean;
+  renderTile: (picnum: number) => Uint8Array | undefined;
+  getTile: (picnum: number) => ArtTile | undefined;
   onPositionChange?: (pos: THREE.Vector3) => void;
 }
 
 const Z_SCALE = 1 / 8192;
 const XY_SCALE = 1 / 512;
 
-export function ViewerScene({ map, wireframe, onPositionChange }: ViewerSceneProps) {
-  const geometry = useMemo(() => buildLevelGeometry(map), [map]);
+export function ViewerScene({ map, wireframe, renderTile, getTile, onPositionChange }: ViewerSceneProps) {
+  const { geometry, atlas } = useMemo(() => {
+    const geo = buildLevelGeometry(map);
 
-  const material = useMemo(
+    // Collect all unique picnums
+    const allPicnums = [
+      ...geo.wallPicnums,
+      ...geo.floorPicnums,
+      ...geo.ceilingPicnums,
+    ];
+
+    const { texture, uvLookup } = buildTextureAtlas(
+      allPicnums,
+      renderTile,
+      (picnum) => {
+        const t = getTile(picnum);
+        return t ? { width: t.width, height: t.height } : undefined;
+      },
+    );
+
+    // Assign UVs to each geometry
+    assignAtlasUVs(geo.walls, geo.wallPicnums, uvLookup, "wall");
+    assignAtlasUVs(geo.floors, geo.floorPicnums, uvLookup, "flat");
+    assignAtlasUVs(geo.ceilings, geo.ceilingPicnums, uvLookup, "flat");
+
+    return { geometry: geo, atlas: texture };
+  }, [map, renderTile, getTile]);
+
+  const texturedMaterial = useMemo(
     () =>
-      wireframe
-        ? new THREE.MeshBasicMaterial({ color: "#f97316", wireframe: true })
-        : new THREE.MeshStandardMaterial({ color: "#a1a1aa", side: THREE.DoubleSide, roughness: 0.9 }),
-    [wireframe],
+      new THREE.MeshStandardMaterial({
+        map: atlas,
+        side: THREE.DoubleSide,
+        roughness: 0.9,
+      }),
+    [atlas],
   );
 
-  const startPos: [number, number, number] = [
-    map.playerStart.x * XY_SCALE,
-    -map.playerStart.z * Z_SCALE,
-    map.playerStart.y * XY_SCALE,
-  ];
+  const wireframeMaterial = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: "#f97316", wireframe: true }),
+    [],
+  );
+
+  const material = wireframe ? wireframeMaterial : texturedMaterial;
+
+  const startPos = useMemo<[number, number, number]>(
+    () => [
+      map.playerStart.x * XY_SCALE,
+      -map.playerStart.z * Z_SCALE,
+      map.playerStart.y * XY_SCALE,
+    ],
+    [map],
+  );
 
   return (
     <Canvas
@@ -40,8 +80,8 @@ export function ViewerScene({ map, wireframe, onPositionChange }: ViewerScenePro
       <color attach="background" args={["#09090b"]} />
       {!wireframe && (
         <>
-          <ambientLight intensity={0.6} />
-          <directionalLight position={[50, 100, 50]} intensity={0.8} />
+          <ambientLight intensity={0.8} />
+          <directionalLight position={[50, 100, 50]} intensity={0.5} />
         </>
       )}
       <mesh geometry={geometry.walls} material={material} />

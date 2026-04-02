@@ -14,8 +14,11 @@ export function FlyCamera({ startPos, startAngle, speed = 5, onPositionChange }:
   const controlsRef = useRef<any>(null);
   const { camera } = useThree();
   const keys = useRef(new Set<string>());
+  const initialized = useRef(false);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     camera.position.set(...startPos);
     const radians = (startAngle * Math.PI * 2) / 2048;
     camera.rotation.set(0, radians, 0);
@@ -31,6 +34,8 @@ export function FlyCamera({ startPos, startAngle, speed = 5, onPositionChange }:
       window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
+
+  const posRef = useRef({ x: 0, y: 0, z: 0 });
 
   useFrame((_, delta) => {
     const k = keys.current;
@@ -48,7 +53,16 @@ export function FlyCamera({ startPos, startAngle, speed = 5, onPositionChange }:
     if (k.has("KeyQ") || k.has("Space")) camera.position.y += s;
     if (k.has("KeyE") || k.has("ControlLeft")) camera.position.y -= s;
 
-    onPositionChange?.(camera.position.clone());
+    // Only call back if position actually changed (avoids re-render storm)
+    const p = camera.position;
+    if (
+      Math.abs(p.x - posRef.current.x) > 0.01 ||
+      Math.abs(p.y - posRef.current.y) > 0.01 ||
+      Math.abs(p.z - posRef.current.z) > 0.01
+    ) {
+      posRef.current = { x: p.x, y: p.y, z: p.z };
+      onPositionChange?.(p.clone());
+    }
   });
 
   return <PointerLockControls ref={controlsRef} />;
