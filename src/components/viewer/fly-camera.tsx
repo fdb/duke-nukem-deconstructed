@@ -39,7 +39,7 @@ export function FlyCamera({ startPos, startAngle, speed = 5, onPositionChange }:
 
   useFrame((_, delta) => {
     const k = keys.current;
-    const boost = k.has("ShiftLeft") || k.has("ShiftRight") ? 3 : 1;
+    const boost = k.has("ShiftLeft") || k.has("ShiftRight") ? 9 : 1;
     const s = speed * boost * delta;
 
     const dir = new THREE.Vector3();
