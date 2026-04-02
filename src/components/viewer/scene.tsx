@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Canvas } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { buildLevelGeometry, assignAtlasRects } from "./build-geometry";
 import { buildTextureAtlas } from "./texture-atlas";
@@ -63,6 +63,80 @@ function makeAtlasMaterial(atlas: THREE.DataTexture) {
   });
 }
 
+/**
+ * Compute animated tile picnum offset using Build engine formula.
+ * From EDuke32 engine.cpp animateoffs():
+ *   OSC (1): ping-pong between 0 and num
+ *   FWD (2): loop 0 to num
+ *   BACK (3): loop 0 to -num
+ */
+function animateoffs(animFrames: number, animType: number, animSpeed: number, totalClock: number): number {
+  if (animFrames <= 0 || animType === 0) return 0;
+  const i = (totalClock >> animSpeed) >>> 0;
+  switch (animType) {
+    case 1: { // oscillate
+      const k = i % (animFrames * 2);
+      return k < animFrames ? k : animFrames * 2 - k;
+    }
+    case 2: return i % (animFrames + 1); // forward
+    case 3: return -(i % (animFrames + 1)); // backward
+    default: return 0;
+  }
+}
+
+/** Component that updates atlas rects for animated tiles each frame */
+function AnimatedGeometry({
+  geometry, picnums, uvLookup, material, getTile,
+}: {
+  geometry: THREE.BufferGeometry;
+  picnums: number[];
+  uvLookup: Map<number, { x: number; y: number; w: number; h: number }>;
+  material: THREE.Material;
+  getTile: (picnum: number) => ArtTile | undefined;
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const clockRef = useRef(0);
+
+  // Find which triangles have animated tiles
+  const animInfo = useMemo(() => {
+    const info: { triIdx: number; basePicnum: number; tile: ArtTile }[] = [];
+    for (let tri = 0; tri < picnums.length; tri++) {
+      const tile = getTile(picnums[tri]);
+      if (tile && tile.animFrames > 0 && tile.animType !== 0) {
+        info.push({ triIdx: tri, basePicnum: picnums[tri], tile });
+      }
+    }
+    return info;
+  }, [picnums, getTile]);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current || animInfo.length === 0) return;
+    // Build engine runs at 120 ticks/sec
+    clockRef.current += delta * 120;
+    const totalClock = Math.floor(clockRef.current);
+
+    const atlasRect = meshRef.current.geometry.getAttribute("atlasRect") as THREE.BufferAttribute;
+    let changed = false;
+
+    for (const { triIdx, basePicnum, tile } of animInfo) {
+      const offs = animateoffs(tile.animFrames, tile.animType, tile.animSpeed, totalClock);
+      const animPicnum = basePicnum + offs;
+      const rect = uvLookup.get(animPicnum);
+      if (!rect) continue;
+
+      for (let v = 0; v < 3; v++) {
+        const vi = triIdx * 3 + v;
+        atlasRect.setXYZW(vi, rect.x, rect.y, rect.w, rect.h);
+      }
+      changed = true;
+    }
+
+    if (changed) atlasRect.needsUpdate = true;
+  });
+
+  return <mesh ref={meshRef} geometry={geometry} material={material} />;
+}
+
 export function ViewerScene({ map, wireframe, showSprites, renderTile, getTile, onPositionChange }: ViewerSceneProps) {
   const getDims = useMemo(
     () => (picnum: number) => {
@@ -75,19 +149,31 @@ export function ViewerScene({ map, wireframe, showSprites, renderTile, getTile, 
   const { geometry, atlasMaterial, atlasTexture, uvLookup, skyPicnum } = useMemo(() => {
     const geo = buildLevelGeometry(map, getDims);
 
-    // Collect all picnums including sprites and sky tiles for the atlas
+    // Collect all picnums including sprites, sky tiles, and animation frames
     const spritePicnums = geo.sprites.map((s) => s.picnum);
     const skyPicnums: number[] = [];
     if (geo.skyPicnum >= 0) {
       for (let i = 0; i < 8; i++) skyPicnums.push(geo.skyPicnum + i);
     }
-    const allPicnums = [
+    const basePicnums = [
       ...geo.wallPicnums,
       ...geo.floorPicnums,
       ...geo.ceilingPicnums,
       ...spritePicnums,
       ...skyPicnums,
     ];
+
+    // Add all animation frame picnums to ensure they're in the atlas
+    const animPicnums: number[] = [];
+    for (const picnum of new Set(basePicnums)) {
+      const tile = getTile(picnum);
+      if (tile && tile.animFrames > 0 && tile.animType !== 0) {
+        for (let f = -tile.animFrames; f <= tile.animFrames; f++) {
+          if (f !== 0) animPicnums.push(picnum + f);
+        }
+      }
+    }
+    const allPicnums = [...basePicnums, ...animPicnums];
 
     const { texture, uvLookup: lookup } = buildTextureAtlas(allPicnums, renderTile, getDims);
 
@@ -127,9 +213,19 @@ export function ViewerScene({ map, wireframe, showSprites, renderTile, getTile, 
       gl={{ antialias: true }}
     >
       <color attach="background" args={["#09090b"]} />
-      <mesh geometry={geometry.walls} material={material} />
-      <mesh geometry={geometry.floors} material={material} />
-      <mesh geometry={geometry.ceilings} material={material} />
+      {wireframe ? (
+        <>
+          <mesh geometry={geometry.walls} material={material} />
+          <mesh geometry={geometry.floors} material={material} />
+          <mesh geometry={geometry.ceilings} material={material} />
+        </>
+      ) : (
+        <>
+          <AnimatedGeometry geometry={geometry.walls} picnums={geometry.wallPicnums} uvLookup={uvLookup} material={atlasMaterial} getTile={getTile} />
+          <AnimatedGeometry geometry={geometry.floors} picnums={geometry.floorPicnums} uvLookup={uvLookup} material={atlasMaterial} getTile={getTile} />
+          <AnimatedGeometry geometry={geometry.ceilings} picnums={geometry.ceilingPicnums} uvLookup={uvLookup} material={atlasMaterial} getTile={getTile} />
+        </>
+      )}
 
       {skyPicnum >= 0 && !wireframe && (
         <Sky skyPicnum={skyPicnum} atlas={atlasTexture} uvLookup={uvLookup} />
