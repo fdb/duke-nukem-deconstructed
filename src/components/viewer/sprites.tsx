@@ -2,12 +2,14 @@ import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { LevelGeometry } from "./build-geometry";
+import type { ArtTile } from "../../lib/types";
 
 interface SpritesProps {
   sprites: LevelGeometry["sprites"];
   atlas: THREE.DataTexture;
   uvLookup: Map<number, { x: number; y: number; w: number; h: number }>;
   wireframe: boolean;
+  getTile?: (picnum: number) => ArtTile | undefined;
 }
 
 const CSTAT_ALIGNMENT_MASK = (1 << 4) | (1 << 5);
@@ -18,7 +20,7 @@ const CSTAT_FLOOR = 1 << 5;
  * Batch all sprites into a single BufferGeometry for performance.
  * Face-camera sprites get updated each frame via the position attribute.
  */
-export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
+export function Sprites({ sprites, atlas, uvLookup, wireframe, getTile }: SpritesProps) {
   const meshRef = useRef<THREE.Mesh>(null);
 
   const { geometry, facingIndices } = useMemo(() => {
@@ -43,7 +45,14 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
       const th = Math.round(rect.h * 2048);
       const alignment = sprite.cstat & CSTAT_ALIGNMENT_MASK;
       const isFacing = alignment === 0;
+      const isFloor = !!(alignment & CSTAT_FLOOR);
       const yCentered = !!(sprite.cstat & 128);
+
+      // Flip bits from EDuke32 polymer.cpp lines 4034-4053
+      const xflip = !!(sprite.cstat & 4);
+      const yflip = !!(sprite.cstat & 8);
+      const flipu = xflip !== isFloor; // XOR: floor sprites invert xflip
+      const flipv = yflip && !isFloor; // floor sprites never flip V
 
       // Size from EDuke32 Polymer formulas
       const xRatio = isFacing ? sprite.xRepeat * 0.20 : sprite.xRepeat * 0.25;
@@ -52,29 +61,56 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
       const h = (th * yRatio) / 512;
       const halfW = w / 2;
 
+      // picanm offsets + sprite offsets (EDuke32 polymer.cpp lines 4001-4013)
+      const tile = getTile?.(sprite.picnum);
+      const tileXOff = (tile?.xOffset ?? 0) + sprite.xOffset;
+      const tileYOff = (tile?.yOffset ?? 0) + sprite.yOffset;
+      let xOff = (tileXOff * xRatio) / 512;
+      let yOff_picanm = (tileYOff * yRatio) / 512;
+
+      // EDuke32: if flipu, negate xoff; if yflip && !face, negate yoff
+      if (flipu) xOff = -xOff;
+      if (yflip && !isFacing) yOff_picanm = -yOff_picanm;
+
       // Base position
       const px = sprite.x;
       const py = sprite.y;
       const pz = sprite.z;
 
       // Vertical offset: bottom at position unless YCENTER
-      const yOff = (!yCentered && alignment !== CSTAT_FLOOR) ? h / 2 : 0;
+      // EDuke32: yCentered face sprites adjust yoff, wall sprites use centeryoff
+      let yOff = 0;
+      let centeryoff = 0;
+      if (yCentered && !isFloor) {
+        if (isFacing) {
+          yOff_picanm -= h / 2;
+        } else {
+          centeryoff = h / 2;
+        }
+      } else if (!isFloor) {
+        yOff = h / 2;
+      }
 
       if (alignment === CSTAT_FLOOR) {
         // Floor-aligned: quad lies flat in XZ plane
-        const ang = -(sprite.ang * Math.PI * 2) / 2048 - Math.PI / 2;
+        // Sprite direction vector: positive sign (not negated like camera rotation.y)
+        const ang = (sprite.ang * Math.PI * 2) / 2048 - Math.PI / 2;
         const cos = Math.cos(ang);
         const sin = Math.sin(ang);
         const halfH = h / 2;
+
+        // Apply picanm offset in rotated space for floor sprites
+        const floorPx = px - xOff * cos + yOff_picanm * sin;
+        const floorPz = pz - xOff * sin - yOff_picanm * cos;
 
         // 4 corners rotated by ang in XZ plane
         const corners = [
           [-halfW, -halfH], [halfW, -halfH], [halfW, halfH], [-halfW, halfH],
         ];
         const rotated = corners.map(([cx, cz]) => [
-          px + cx * cos - cz * sin,
+          floorPx + cx * cos - cz * sin,
           py,
-          pz + cx * sin + cz * cos,
+          floorPz + cx * sin + cz * cos,
         ]);
 
         // Two triangles
@@ -83,8 +119,10 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
             positions.push(rotated[vi][0], rotated[vi][1], rotated[vi][2]);
           }
         }
-        // UVs (flip V for correct orientation)
-        const uvCorners = [[0, 1], [1, 1], [1, 0], [0, 0]];
+        // UVs: apply flipu/flipv for floor sprites
+        const fu0 = flipu ? 1 : 0, fu1 = flipu ? 0 : 1;
+        const fv0 = flipv ? 1 : 0, fv1 = flipv ? 0 : 1;
+        const uvCorners = [[fu0, fv1], [fu1, fv1], [fu1, fv0], [fu0, fv0]];
         for (const tri of [[0, 1, 2], [0, 2, 3]]) {
           for (const vi of tri) {
             uvs.push(uvCorners[vi][0], uvCorners[vi][1]);
@@ -92,37 +130,56 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
         }
       } else if (alignment === CSTAT_WALL) {
         // Wall-aligned: vertical quad rotated by sprite angle
-        const ang = -(sprite.ang * Math.PI * 2) / 2048 - Math.PI / 2;
+        // Sprite direction = (sin(θ), -cos(θ)) in Build coords (engine_priv.h:384-385)
+        // Using POSITIVE sign (not negated like camera rotation.y)
+        const ang = (sprite.ang * Math.PI * 2) / 2048 - Math.PI / 2;
         const cos = Math.cos(ang);
         const sin = Math.sin(ang);
 
+        // Apply picanm offset after rotation (EDuke32: glTranslatef(-xoff, yoff - centeryoff, 0) after glRotatef)
+        const offPx = px - xOff * cos;
+        const offPz = pz - xOff * sin;
+        const offPy = py + yOff_picanm - centeryoff;
+
         // 4 corners of vertical quad, rotated around Y
-        const bl = [px - halfW * cos, py + yOff - h / 2, pz - halfW * sin];
-        const br = [px + halfW * cos, py + yOff - h / 2, pz + halfW * sin];
-        const tr = [px + halfW * cos, py + yOff + h / 2, pz + halfW * sin];
-        const tl = [px - halfW * cos, py + yOff + h / 2, pz - halfW * sin];
+        const bl = [offPx - halfW * cos, offPy + yOff - h / 2, offPz - halfW * sin];
+        const br = [offPx + halfW * cos, offPy + yOff - h / 2, offPz + halfW * sin];
+        const tr = [offPx + halfW * cos, offPy + yOff + h / 2, offPz + halfW * sin];
+        const tl = [offPx - halfW * cos, offPy + yOff + h / 2, offPz - halfW * sin];
 
         // Two triangles
         for (const v of [tl, tr, br, tl, br, bl]) {
           positions.push(v[0], v[1], v[2]);
         }
-        // UVs (flip V)
-        uvs.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+        // UVs: With correct angle formula (positive sign), TL is at screen-LEFT
+        // from the front view, so normal UV mapping (u=0 at TL) is correct.
+        const u0 = flipu ? 1 : 0, u1 = flipu ? 0 : 1;
+        const v0 = flipv ? 1 : 0, v1 = flipv ? 0 : 1;
+        uvs.push(u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1);
       } else {
         // Face-camera: initially oriented as a vertical quad facing -Z
         // Will be reoriented each frame
         const baseIdx = positions.length / 3;
         facing.push(baseIdx); // Track for billboard update
 
-        const bl = [px - halfW, py + yOff - h / 2, pz];
-        const br = [px + halfW, py + yOff - h / 2, pz];
-        const tr = [px + halfW, py + yOff + h / 2, pz];
-        const tl = [px - halfW, py + yOff + h / 2, pz];
+        // Apply picanm offset in world space (approximation — Polymer applies
+        // in camera space via billboarding-as-wall-sprite, but our billboard
+        // approach is different enough that world-space works better)
+        const fpx = px - xOff;
+        const fpy = py + yOff_picanm;
+
+        const bl = [fpx - halfW, fpy + yOff - h / 2, pz];
+        const br = [fpx + halfW, fpy + yOff - h / 2, pz];
+        const tr = [fpx + halfW, fpy + yOff + h / 2, pz];
+        const tl = [fpx - halfW, fpy + yOff + h / 2, pz];
 
         for (const v of [tl, tr, br, tl, br, bl]) {
           positions.push(v[0], v[1], v[2]);
         }
-        uvs.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+        // UVs: apply flipu/flipv for face sprites
+        const fu0 = flipu ? 1 : 0, fu1 = flipu ? 0 : 1;
+        const fv0 = flipv ? 1 : 0, fv1 = flipv ? 0 : 1;
+        uvs.push(fu0, fv0, fu1, fv0, fu1, fv1, fu0, fv0, fu1, fv1, fu0, fv1);
       }
 
       // Atlas rect for all 6 vertices of this quad
@@ -138,7 +195,6 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
 
     // Store sprite data for billboard updates
     const facingData = facing.map((baseIdx) => {
-      const px = positions[baseIdx * 3]; // tl.x — but we need center
       // Reconstruct center from tl and br (indices 0 and 2 of the 6 verts)
       const tlX = positions[baseIdx * 3];
       const tlY = positions[baseIdx * 3 + 1];
@@ -157,7 +213,7 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
     });
 
     return { geometry: geo, facingIndices: facingData };
-  }, [sprites, uvLookup]);
+  }, [sprites, uvLookup, getTile]);
 
   // Update face-camera sprites each frame
   useFrame(({ camera }) => {
@@ -216,7 +272,10 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe }: SpritesProps) {
       `,
       side: THREE.DoubleSide,
       transparent: true,
-      depthWrite: false,
+      depthWrite: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -4,
     });
   }, [atlas, wireframe]);
 

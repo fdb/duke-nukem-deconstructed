@@ -30,22 +30,6 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
     return () => canvas.removeEventListener("wheel", onWheel);
   }, []);
 
-  // Compute transforms
-  function getTransform() {
-    const { minX, maxX, minY, maxY } = baseBounds.current;
-    const rangeX = maxX - minX || 1;
-    const rangeY = maxY - minY || 1;
-    const padding = 20;
-    const baseScale = Math.min((width - padding * 2) / rangeX, (height - padding * 2) / rangeY);
-    const scale = baseScale * zoom;
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    return { scale, centerX, centerY };
-  }
-
-  function tx(x: number) { const t = getTransform(); return width / 2 + (x - t.centerX) * t.scale + panX; }
-  function ty(y: number) { const t = getTransform(); return height / 2 + (y - t.centerY) * t.scale + panY; }
-
   const draw = useCallback(() => {
     const canvas = ref.current;
     if (!canvas) return;

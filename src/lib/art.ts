@@ -39,8 +39,9 @@ export function parseArt(buffer: ArrayBuffer): ArtFile {
     const p = picanms[i];
     const animFrames = p & 0x3f;
     const animType = (p >> 6) & 0x3;
-    const xOffset = (p >> 8) & 0xff;
-    const yOffset = (p >> 16) & 0xff;
+    // picanm xofs/yofs are int8_t (signed) in the Build engine (build.h:965)
+    const xOffset = ((p >> 8) & 0xff) << 24 >> 24;
+    const yOffset = ((p >> 16) & 0xff) << 24 >> 24;
     const animSpeed = (p >> 24) & 0xf;
 
     tiles.push({ width: w, height: h, pixels: new Uint8Array(pixels), animFrames, animType, xOffset, yOffset, animSpeed });

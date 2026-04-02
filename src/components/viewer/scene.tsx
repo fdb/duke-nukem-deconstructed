@@ -5,6 +5,7 @@ import { buildLevelGeometry, assignAtlasRects } from "./build-geometry";
 import { buildTextureAtlas } from "./texture-atlas";
 import { FlyCamera } from "./fly-camera";
 import { Sprites } from "./sprites";
+import { Sky } from "./sky";
 import type { BuildMap, ArtTile } from "../../lib/types";
 
 interface ViewerSceneProps {
@@ -72,16 +73,21 @@ export function ViewerScene({ map, wireframe, showSprites, renderTile, getTile, 
     [getTile],
   );
 
-  const { geometry, atlasMaterial, atlasTexture, uvLookup } = useMemo(() => {
+  const { geometry, atlasMaterial, atlasTexture, uvLookup, skyPicnum } = useMemo(() => {
     const geo = buildLevelGeometry(map, getDims);
 
-    // Collect all picnums including sprites for the atlas
+    // Collect all picnums including sprites and sky tiles for the atlas
     const spritePicnums = geo.sprites.map((s) => s.picnum);
+    const skyPicnums: number[] = [];
+    if (geo.skyPicnum >= 0) {
+      for (let i = 0; i < 8; i++) skyPicnums.push(geo.skyPicnum + i);
+    }
     const allPicnums = [
       ...geo.wallPicnums,
       ...geo.floorPicnums,
       ...geo.ceilingPicnums,
       ...spritePicnums,
+      ...skyPicnums,
     ];
 
     const { texture, uvLookup: lookup } = buildTextureAtlas(allPicnums, renderTile, getDims);
@@ -95,6 +101,7 @@ export function ViewerScene({ map, wireframe, showSprites, renderTile, getTile, 
       atlasMaterial: makeAtlasMaterial(texture),
       atlasTexture: texture,
       uvLookup: lookup,
+      skyPicnum: geo.skyPicnum,
     };
   }, [map, renderTile, getDims]);
 
@@ -125,12 +132,17 @@ export function ViewerScene({ map, wireframe, showSprites, renderTile, getTile, 
       <mesh geometry={geometry.floors} material={material} />
       <mesh geometry={geometry.ceilings} material={material} />
 
+      {skyPicnum >= 0 && !wireframe && (
+        <Sky skyPicnum={skyPicnum} atlas={atlasTexture} uvLookup={uvLookup} />
+      )}
+
       {showSprites && (
         <Sprites
           sprites={geometry.sprites}
           atlas={atlasTexture}
           uvLookup={uvLookup}
           wireframe={wireframe}
+          getTile={getTile}
         />
       )}
 

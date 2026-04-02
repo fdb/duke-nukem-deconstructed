@@ -42,7 +42,9 @@ export interface LevelGeometry {
   wallPicnums: number[];
   floorPicnums: number[];
   ceilingPicnums: number[];
-  sprites: { x: number; y: number; z: number; picnum: number; ang: number; xRepeat: number; yRepeat: number; cstat: number }[];
+  sprites: { x: number; y: number; z: number; picnum: number; ang: number; xRepeat: number; yRepeat: number; xOffset: number; yOffset: number; cstat: number }[];
+  /** Base picnum for parallax sky (from first parallax ceiling sector), or -1 if none */
+  skyPicnum: number;
 }
 
 /**
@@ -74,11 +76,6 @@ function buildSectorWalls(
     const ceilZ2 = getSlopeZ(sector.ceilingZ, sector.ceilingHeinum, nextWall.x, nextWall.y, firstWall, map.walls);
     const floorZ1 = getSlopeZ(sector.floorZ, sector.floorHeinum, wall.x, wall.y, firstWall, map.walls);
     const floorZ2 = getSlopeZ(sector.floorZ, sector.floorHeinum, nextWall.x, nextWall.y, firstWall, map.walls);
-
-    // Wall length in map units
-    const dx = nextWall.x - wall.x;
-    const dy = nextWall.y - wall.y;
-    const wallLen = Math.sqrt(dx * dx + dy * dy);
 
     function pushQuad(
       ax1: number, ay1: number, az1: number,
@@ -133,17 +130,22 @@ function buildSectorWalls(
       const adjFloorZ1 = getSlopeZ(adjSector.floorZ, adjSector.floorHeinum, wall.x, wall.y, adjFirstWall, map.walls);
       const adjFloorZ2 = getSlopeZ(adjSector.floorZ, adjSector.floorHeinum, nextWall.x, nextWall.y, adjFirstWall, map.walls);
 
-      if (ceilZ1 < adjCeilZ1 || ceilZ2 < adjCeilZ2) {
+      // EDuke32 polymer.cpp lines 3654-3660: skip upper/lower walls
+      // when both sectors have parallax ceiling/floor (both open to sky)
+      const bothParallaxCeil = (sector.ceilingStat & 1) && (adjSector.ceilingStat & 1);
+      const bothParallaxFloor = (sector.floorStat & 1) && (adjSector.floorStat & 1);
+
+      if (!bothParallaxCeil && (ceilZ1 < adjCeilZ1 || ceilZ2 < adjCeilZ2)) {
         // Upper wall: height from our ceiling to adjacent ceiling
         const heightZ = Math.abs(sector.ceilingZ - adjSector.ceilingZ);
-        const pic = wall.overPicnum || wall.picnum;
+        const pic = wall.picnum;
         pushQuad(
           x1, -ceilZ1, y1,  x2, -ceilZ2, y2,
           x2, -adjCeilZ2, y2,  x1, -adjCeilZ1, y1,
           pic, wall.xRepeat, wall.yRepeat, heightZ,
         );
       }
-      if (floorZ1 > adjFloorZ1 || floorZ2 > adjFloorZ2) {
+      if (!bothParallaxFloor && (floorZ1 > adjFloorZ1 || floorZ2 > adjFloorZ2)) {
         // Lower wall: height from adjacent floor to our floor
         const heightZ = Math.abs(adjSector.floorZ - sector.floorZ);
         pushQuad(
@@ -151,6 +153,27 @@ function buildSectorWalls(
           x2, -floorZ2, y2,  x1, -floorZ1, y1,
           wall.picnum, wall.xRepeat, wall.yRepeat, heightZ,
         );
+      }
+
+      // Masked wall (cstat bit 4) or 1-way wall (cstat bit 5):
+      // render the portal opening with overPicnum
+      if (wall.cstat & (16 | 32)) {
+        const maskTop1 = Math.max(-adjCeilZ1, -ceilZ1);
+        const maskTop2 = Math.max(-adjCeilZ2, -ceilZ2);
+        const maskBot1 = Math.min(-adjFloorZ1, -floorZ1);
+        const maskBot2 = Math.min(-adjFloorZ2, -floorZ2);
+        if (maskTop1 > maskBot1 || maskTop2 > maskBot2) {
+          const maskPic = wall.overPicnum || wall.picnum;
+          const heightZ = Math.abs(
+            Math.max(adjSector.ceilingZ, sector.ceilingZ) -
+            Math.min(adjSector.floorZ, sector.floorZ)
+          );
+          pushQuad(
+            x1, maskTop1, y1,  x2, maskTop2, y2,
+            x2, maskBot2, y2,  x1, maskBot1, y1,
+            maskPic, wall.xRepeat, wall.yRepeat, heightZ,
+          );
+        }
       }
     }
   }
@@ -177,10 +200,30 @@ function triangulateSector(
   const heinum = isCeiling ? sector.ceilingHeinum : sector.floorHeinum;
   const baseZ = isCeiling ? sector.ceilingZ : sector.floorZ;
   const picnum = isCeiling ? sector.ceilingPicnum : sector.floorPicnum;
+  const stat = isCeiling ? sector.ceilingStat : sector.floorStat;
 
   const dims = getDims(picnum);
   const tw = dims?.w || 64;
   const th = dims?.h || 64;
+
+  // Stat bit 3 (8): double expand — use 8 instead of 16 as scale divisor
+  const scaleCoef = (stat & 8) ? 8 : 16;
+
+  // Relative alignment (stat bit 6): compute rotation from first wall angle
+  // From EDuke32 polymer.cpp lines 2746-2749
+  let secAngCos = 0;
+  let secAngSin = 0;
+  let useRelative = false;
+  if (stat & 64) {
+    useRelative = true;
+    const fw = map.walls[sector.wallPtr];
+    const fw2 = map.walls[fw.point2];
+    const dx = fw2.x - fw.x;
+    const dy = fw2.y - fw.y;
+    const arctan = Math.atan2(dy, dx) + Math.PI / 2;
+    secAngCos = Math.cos(arctan);
+    secAngSin = Math.sin(arctan);
+  }
 
   for (let i = 0; i < sector.wallNum; i++) {
     const wall = map.walls[sector.wallPtr + i];
@@ -193,10 +236,34 @@ function triangulateSector(
     const idxs = isCeiling ? [0, i + 1, i] : [0, i, i + 1];
     for (const idx of idxs) {
       positions.push(...verts[idx]);
-      // World-space tiled UVs
+
+      // UV calculation from EDuke32 polymer.cpp lines 2784-2832
+      let tex: number;
+      let tey: number;
+
+      if (useRelative) {
+        // Relative to first wall: rotate coords around first wall position
+        const xp = mapCoords[idx][0] - map.walls[sector.wallPtr].x;
+        const yp = map.walls[sector.wallPtr].y - mapCoords[idx][1];
+        tex = xp * secAngSin + yp * secAngCos;
+        tey = xp * secAngCos - yp * secAngSin;
+      } else {
+        tex = mapCoords[idx][0];
+        tey = -mapCoords[idx][1]; // EDuke32: tey = -wal->y
+      }
+
+      // Stat bit 2 (4): swap XY axes (90° rotation)
+      if (stat & 4) { const tmp = tex; tex = tey; tey = tmp; }
+
+      // Stat bit 4 (16): flip X
+      if (stat & 16) tex = -tex;
+
+      // Stat bit 5 (32): flip Y
+      if (stat & 32) tey = -tey;
+
       uvs.push(
-        mapCoords[idx][0] / (tw * 16),
-        mapCoords[idx][1] / (th * 16),
+        tex / (tw * scaleCoef),
+        tey / (th * scaleCoef),
       );
     }
   }
@@ -215,6 +282,14 @@ export function buildLevelGeometry(map: BuildMap, getDims: GetTileDims): LevelGe
   const allCeilPos: number[] = [];
   const allCeilUvs: number[] = [];
   const allCeilPicnums: number[] = [];
+
+  // Find parallax sky tile (first parallax ceiling sector)
+  let skyPicnum = -1;
+  for (const sector of map.sectors) {
+    if ((sector.ceilingStat & 1) && skyPicnum < 0) {
+      skyPicnum = sector.ceilingPicnum;
+    }
+  }
 
   for (const sector of map.sectors) {
     const wallData = buildSectorWalls(sector, map, getDims);
@@ -260,10 +335,12 @@ export function buildLevelGeometry(map: BuildMap, getDims: GetTileDims): LevelGe
     ang: s.ang,
     xRepeat: s.xRepeat,
     yRepeat: s.yRepeat,
+    xOffset: s.xOffset,
+    yOffset: s.yOffset,
     cstat: s.cstat,
   }));
 
-  return { walls, floors, ceilings, wallPicnums: allWallPicnums, floorPicnums: allFloorPicnums, ceilingPicnums: allCeilPicnums, sprites };
+  return { walls, floors, ceilings, wallPicnums: allWallPicnums, floorPicnums: allFloorPicnums, ceilingPicnums: allCeilPicnums, sprites, skyPicnum };
 }
 
 /**
