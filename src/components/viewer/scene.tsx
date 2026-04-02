@@ -4,11 +4,13 @@ import * as THREE from "three";
 import { buildLevelGeometry, assignAtlasRects } from "./build-geometry";
 import { buildTextureAtlas } from "./texture-atlas";
 import { FlyCamera } from "./fly-camera";
+import { Sprites } from "./sprites";
 import type { BuildMap, ArtTile } from "../../lib/types";
 
 interface ViewerSceneProps {
   map: BuildMap;
   wireframe: boolean;
+  showSprites: boolean;
   renderTile: (picnum: number) => Uint8Array | undefined;
   getTile: (picnum: number) => ArtTile | undefined;
   onPositionChange?: (pos: THREE.Vector3) => void;
@@ -45,16 +47,13 @@ function makeAtlasMaterial(atlas: THREE.DataTexture) {
       varying vec3 vNormal;
 
       void main() {
-        // Tile within the atlas sub-rect using fract()
         vec2 tiledUV = vAtlasRect.xy + fract(vUv) * vAtlasRect.zw;
         vec4 texColor = texture2D(atlas, tiledUV);
 
-        // Simple directional lighting
         vec3 lightDir = normalize(vec3(0.3, 1.0, 0.5));
         float diff = max(dot(vNormal, lightDir), 0.0) * (1.0 - ambientIntensity);
         float light = ambientIntensity + diff;
 
-        // Discard fully transparent pixels
         if (texColor.a < 0.1) discard;
 
         gl_FragColor = vec4(texColor.rgb * light, texColor.a);
@@ -64,7 +63,7 @@ function makeAtlasMaterial(atlas: THREE.DataTexture) {
   });
 }
 
-export function ViewerScene({ map, wireframe, renderTile, getTile, onPositionChange }: ViewerSceneProps) {
+export function ViewerScene({ map, wireframe, showSprites, renderTile, getTile, onPositionChange }: ViewerSceneProps) {
   const getDims = useMemo(
     () => (picnum: number) => {
       const t = getTile(picnum);
@@ -73,19 +72,30 @@ export function ViewerScene({ map, wireframe, renderTile, getTile, onPositionCha
     [getTile],
   );
 
-  const { geometry, atlasMaterial } = useMemo(() => {
+  const { geometry, atlasMaterial, atlasTexture, uvLookup } = useMemo(() => {
     const geo = buildLevelGeometry(map, getDims);
 
-    const allPicnums = [...geo.wallPicnums, ...geo.floorPicnums, ...geo.ceilingPicnums];
+    // Collect all picnums including sprites for the atlas
+    const spritePicnums = geo.sprites.map((s) => s.picnum);
+    const allPicnums = [
+      ...geo.wallPicnums,
+      ...geo.floorPicnums,
+      ...geo.ceilingPicnums,
+      ...spritePicnums,
+    ];
 
-    const { texture, uvLookup } = buildTextureAtlas(allPicnums, renderTile, getDims);
+    const { texture, uvLookup: lookup } = buildTextureAtlas(allPicnums, renderTile, getDims);
 
-    // Assign atlas rect per-vertex attribute
-    assignAtlasRects(geo.walls, geo.wallPicnums, uvLookup);
-    assignAtlasRects(geo.floors, geo.floorPicnums, uvLookup);
-    assignAtlasRects(geo.ceilings, geo.ceilingPicnums, uvLookup);
+    assignAtlasRects(geo.walls, geo.wallPicnums, lookup);
+    assignAtlasRects(geo.floors, geo.floorPicnums, lookup);
+    assignAtlasRects(geo.ceilings, geo.ceilingPicnums, lookup);
 
-    return { geometry: geo, atlasMaterial: makeAtlasMaterial(texture) };
+    return {
+      geometry: geo,
+      atlasMaterial: makeAtlasMaterial(texture),
+      atlasTexture: texture,
+      uvLookup: lookup,
+    };
   }, [map, renderTile, getDims]);
 
   const wireframeMaterial = useMemo(
@@ -114,6 +124,15 @@ export function ViewerScene({ map, wireframe, renderTile, getTile, onPositionCha
       <mesh geometry={geometry.walls} material={material} />
       <mesh geometry={geometry.floors} material={material} />
       <mesh geometry={geometry.ceilings} material={material} />
+
+      {showSprites && (
+        <Sprites
+          sprites={geometry.sprites}
+          atlas={atlasTexture}
+          uvLookup={uvLookup}
+          wireframe={wireframe}
+        />
+      )}
 
       <FlyCamera startPos={startPos} startAngle={map.playerStart.ang} speed={3} onPositionChange={onPositionChange} />
     </Canvas>

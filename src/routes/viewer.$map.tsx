@@ -26,6 +26,7 @@ function ViewerPage() {
   const map = getMap(level.file);
 
   const [wireframe, setWireframe] = useState(false);
+  const [showSprites, setShowSprites] = useState(true);
   const [position, setPosition] = useState<{ x: number; y: number; z: number } | null>(null);
 
   const handlePos = useCallback((pos: THREE.Vector3) => {
@@ -34,11 +35,20 @@ function ViewerPage() {
 
   return (
     <div className="relative w-full h-[calc(100vh-49px)]">
-      <ViewerScene map={map} wireframe={wireframe} renderTile={renderTile} getTile={getTile} onPositionChange={handlePos} />
+      <ViewerScene
+        map={map}
+        wireframe={wireframe}
+        showSprites={showSprites}
+        renderTile={renderTile}
+        getTile={getTile}
+        onPositionChange={handlePos}
+      />
       <Hud
         position={position}
         wireframe={wireframe}
+        showSprites={showSprites}
         onToggleWireframe={() => setWireframe((w) => !w)}
+        onToggleSprites={() => setShowSprites((s) => !s)}
         mapName={`${level.id} — ${level.name}`}
       />
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-zinc-950/80 border border-zinc-800 px-4 py-2 text-xs text-zinc-500 text-center pointer-events-none">

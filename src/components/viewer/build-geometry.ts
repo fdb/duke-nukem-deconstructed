@@ -34,7 +34,7 @@ export interface LevelGeometry {
   wallPicnums: number[];
   floorPicnums: number[];
   ceilingPicnums: number[];
-  sprites: { x: number; y: number; z: number; picnum: number; xRepeat: number; yRepeat: number; cstat: number }[];
+  sprites: { x: number; y: number; z: number; picnum: number; ang: number; xRepeat: number; yRepeat: number; cstat: number }[];
 }
 
 /**
@@ -244,6 +244,7 @@ export function buildLevelGeometry(map: BuildMap, getDims: GetTileDims): LevelGe
     y: -s.z * Z_SCALE,
     z: s.y * XY_SCALE,
     picnum: s.picnum,
+    ang: s.ang,
     xRepeat: s.xRepeat,
     yRepeat: s.yRepeat,
     cstat: s.cstat,
