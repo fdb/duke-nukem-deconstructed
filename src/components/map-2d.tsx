@@ -14,11 +14,21 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const isPanning = useRef(false);
+  const didPan = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
   const baseBounds = useRef({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
 
   // Reset zoom/pan when map changes
   useEffect(() => { setZoom(1); setPanX(0); setPanY(0); }, [map]);
+
+  // Native wheel listener to prevent page scroll (React onWheel is passive)
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    function onWheel(e: WheelEvent) { e.preventDefault(); }
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, []);
 
   // Compute transforms
   function getTransform() {
@@ -128,7 +138,7 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
   }
 
   function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!onSectorClick || isPanning.current) return;
+    if (!onSectorClick || didPan.current) return;
     const { mx, my } = canvasToMap(e.clientX, e.clientY);
 
     for (let si = 0; si < map.sectors.length; si++) {
@@ -149,7 +159,8 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
 
   function handleWheel(e: React.WheelEvent<HTMLCanvasElement>) {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    e.stopPropagation();
+    const factor = e.deltaY < 0 ? 1.03 : 1 / 1.03;
     const newZoom = Math.max(0.1, Math.min(50, zoom * factor));
 
     // Zoom towards mouse position
@@ -167,18 +178,20 @@ export function Map2D({ map, width, height, onSectorClick }: Map2DProps) {
   }
 
   function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
-    // Middle click or right click to pan
-    if (e.button === 1 || e.button === 2) {
+    if (e.button === 0) {
       isPanning.current = true;
+      didPan.current = false;
       lastMouse.current = { x: e.clientX, y: e.clientY };
-      e.preventDefault();
     }
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     if (!isPanning.current) return;
-    setPanX((p) => p + e.clientX - lastMouse.current.x);
-    setPanY((p) => p + e.clientY - lastMouse.current.y);
+    const dx = e.clientX - lastMouse.current.x;
+    const dy = e.clientY - lastMouse.current.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didPan.current = true;
+    setPanX((p) => p + dx);
+    setPanY((p) => p + dy);
     lastMouse.current = { x: e.clientX, y: e.clientY };
   }
 
