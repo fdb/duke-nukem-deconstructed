@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TilesRouteImport } from './routes/tiles'
 import { Route as ScriptsRouteImport } from './routes/scripts'
+import { Route as RenderingRouteImport } from './routes/rendering'
 import { Route as PaletteRouteImport } from './routes/palette'
 import { Route as MapsRouteImport } from './routes/maps'
 import { Route as GrpRouteImport } from './routes/grp'
@@ -27,6 +28,11 @@ const TilesRoute = TilesRouteImport.update({
 const ScriptsRoute = ScriptsRouteImport.update({
   id: '/scripts',
   path: '/scripts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RenderingRoute = RenderingRouteImport.update({
+  id: '/rendering',
+  path: '/rendering',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaletteRoute = PaletteRouteImport.update({
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/grp': typeof GrpRoute
   '/maps': typeof MapsRoute
   '/palette': typeof PaletteRoute
+  '/rendering': typeof RenderingRoute
   '/scripts': typeof ScriptsRoute
   '/tiles': typeof TilesRoute
   '/viewer/$map': typeof ViewerMapRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/grp': typeof GrpRoute
   '/maps': typeof MapsRoute
   '/palette': typeof PaletteRoute
+  '/rendering': typeof RenderingRoute
   '/scripts': typeof ScriptsRoute
   '/tiles': typeof TilesRoute
   '/viewer/$map': typeof ViewerMapRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/grp': typeof GrpRoute
   '/maps': typeof MapsRoute
   '/palette': typeof PaletteRoute
+  '/rendering': typeof RenderingRoute
   '/scripts': typeof ScriptsRoute
   '/tiles': typeof TilesRoute
   '/viewer/$map': typeof ViewerMapRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/grp'
     | '/maps'
     | '/palette'
+    | '/rendering'
     | '/scripts'
     | '/tiles'
     | '/viewer/$map'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/grp'
     | '/maps'
     | '/palette'
+    | '/rendering'
     | '/scripts'
     | '/tiles'
     | '/viewer/$map'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/grp'
     | '/maps'
     | '/palette'
+    | '/rendering'
     | '/scripts'
     | '/tiles'
     | '/viewer/$map'
@@ -142,6 +154,7 @@ export interface RootRouteChildren {
   GrpRoute: typeof GrpRoute
   MapsRoute: typeof MapsRoute
   PaletteRoute: typeof PaletteRoute
+  RenderingRoute: typeof RenderingRoute
   ScriptsRoute: typeof ScriptsRoute
   TilesRoute: typeof TilesRoute
   ViewerMapRoute: typeof ViewerMapRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/scripts'
       fullPath: '/scripts'
       preLoaderRoute: typeof ScriptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rendering': {
+      id: '/rendering'
+      path: '/rendering'
+      fullPath: '/rendering'
+      preLoaderRoute: typeof RenderingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/palette': {
@@ -222,6 +242,7 @@ const rootRouteChildren: RootRouteChildren = {
   GrpRoute: GrpRoute,
   MapsRoute: MapsRoute,
   PaletteRoute: PaletteRoute,
+  RenderingRoute: RenderingRoute,
   ScriptsRoute: ScriptsRoute,
   TilesRoute: TilesRoute,
   ViewerMapRoute: ViewerMapRoute,
