@@ -282,8 +282,8 @@ export function Sprites({ sprites, atlas, uvLookup, wireframe, getTile }: Sprite
       transparent: true,
       depthWrite: true,
       polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -4,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -8,
     });
   }, [atlas, wireframe]);
 
