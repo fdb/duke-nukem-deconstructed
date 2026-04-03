@@ -12,6 +12,8 @@ const NAV_ITEMS = [
   { to: "/rendering", label: "Rendering" },
 ] as const;
 
+const VIEWER_HREF = "/viewer/E1L1";
+
 export function Layout() {
   return (
     <div className="min-h-screen flex flex-col">
@@ -33,6 +35,12 @@ export function Layout() {
               {item.label}
             </Link>
           ))}
+          <a
+            href={VIEWER_HREF}
+            className="text-orange-500 text-sm no-underline hover:text-orange-400 font-semibold"
+          >
+            3D Viewer
+          </a>
         </div>
       </nav>
       <main className="flex-1">

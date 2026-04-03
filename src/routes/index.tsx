@@ -8,6 +8,7 @@ const SECTIONS = [
   { to: "/maps", title: "MAP Format", desc: "Sectors, walls, and sprites — the 2.5D geometry of Build engine levels" },
   { to: "/scripts", title: "CON Scripts", desc: "The game scripting language — actors, AI, weapons, and game logic" },
   { to: "/audio", title: "Audio", desc: "Creative Voice files and MIDI music — Duke's one-liners and GRABBAG" },
+  { to: "/rendering", title: "Rendering", desc: "How the 2.5D world is reconstructed in WebGL — systems, formulas, and war stories" },
 ] as const;
 
 export const Route = createFileRoute("/")({
