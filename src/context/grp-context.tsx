@@ -42,7 +42,11 @@ export function GrpProvider({ children }: { children: ReactNode }) {
 
     async function load() {
       try {
-        const response = await fetch("/DUKE3D.GRP");
+        // Try S3 first (for production), fall back to local (for dev)
+        let response = await fetch("https://enigmeta-website.s3.amazonaws.com/media/projects/2026-duke-nukem-deconstruction/DUKE3D.GRP").catch(() => null);
+        if (!response || !response.ok) {
+          response = await fetch("/DUKE3D.GRP");
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const buffer = await response.arrayBuffer();
         if (cancelled) return;
