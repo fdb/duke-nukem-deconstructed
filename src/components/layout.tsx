@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: "/maps", label: "Maps" },
   { to: "/scripts", label: "Scripts" },
   { to: "/audio", label: "Audio" },
+  { to: "/rendering", label: "Rendering" },
 ] as const;
 
 export function Layout() {
